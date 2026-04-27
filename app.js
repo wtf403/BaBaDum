@@ -134,74 +134,12 @@ var HanziWriterManager = {
     // Auto-play on load
     setTimeout(animateAll, 500);
 
-    // Make transcription clickable to replay all
+    // Make transcription clickable to play audio only
     var transcriptionClickHandler = function (e) {
       e.preventDefault();
       e.stopPropagation();
 
-      // Cancel any ongoing animation
-      if (HanziWriterManager.isAnimating) {
-        HanziWriterManager.isAnimating = false;
-      }
-
-      // Clear all SVG content
-      writerDiv.find("svg").each(function () {
-        $(this).empty();
-      });
-
-      // Recreate writers and animate
-      writers = [];
-      writerDiv.empty();
-      for (var i = 0; i < character.length; i++) {
-        var charDiv = $('<div class="hanzi-char"></div>');
-        writerDiv.append(charDiv);
-
-        if (typeof HanziWriter !== "undefined") {
-          var writer = HanziWriter.create(
-            charDiv[0],
-            character[i],
-            HanziWriterManager.getConfig(),
-          );
-          writers.push(writer);
-
-          // Add click handler for individual character
-          (function (w, idx) {
-            $(charDiv).css("cursor", "pointer");
-            $(charDiv).on("click", function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              w.hideCharacter();
-              setTimeout(function () {
-                w.animateCharacter();
-              }, 100);
-              if (wordData && wordData.sound && !wordData.sound.fake) {
-                wordData.sound.play();
-              }
-            });
-          })(writer, i);
-        }
-      }
-
-      // Animate all characters one by one, chaining them
-      HanziWriterManager.isAnimating = true;
-      var animateNext = function (index) {
-        if (!HanziWriterManager.isAnimating || index >= writers.length) {
-          HanziWriterManager.isAnimating = false;
-          return;
-        }
-
-        writers[index].animateCharacter({
-          onComplete: function () {
-            if (HanziWriterManager.isAnimating) {
-              animateNext(index + 1);
-            }
-          },
-        });
-      };
-
-      animateNext(0);
-
-      // Play sound
+      // Only play sound, don't re-render
       if (wordData && wordData.sound && !wordData.sound.fake) {
         wordData.sound.play();
       }
