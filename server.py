@@ -7,11 +7,21 @@ Includes DeepL API proxy endpoint
 
 import http.server
 import json
+import logging
 import os
 import socketserver
+import urllib.error
 import urllib.parse
 import urllib.request
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("deepl_errors.log"), logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 PORT = 8000
 DEEPL_API_KEY = ""  # Set your DeepL API key here or in config
@@ -32,6 +42,10 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def handle_deepl_request(self):
         """Proxy DeepL API requests"""
+        text = ""
+        source_lang = "ZH"
+        target_lang = "EN"
+
         try:
             # Read request body
             content_length = int(self.headers["Content-Length"])
@@ -46,6 +60,9 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             api_key = request_data.get("auth_key", DEEPL_API_KEY)
 
             if not api_key:
+                logger.error(
+                    f"DeepL API request failed: API key not configured - Text: '{text[:50]}...'"
+                )
                 self.send_response(400)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
@@ -79,6 +96,9 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(deepl_response)
 
         except urllib.error.HTTPError as e:
+            logger.error(
+                f"DeepL API HTTP Error {e.code}: {e.reason} - Text: '{text[:50]}...', Source: {source_lang}, Target: {target_lang}"
+            )
             self.send_response(e.code)
             self.send_header("Content-type", "application/json")
             self.end_headers()
@@ -86,6 +106,9 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(error_response).encode())
 
         except Exception as e:
+            logger.error(
+                f"DeepL API Exception: {str(e)} - Text: '{text[:50]}...', Source: {source_lang}, Target: {target_lang}"
+            )
             self.send_response(500)
             self.send_header("Content-type", "application/json")
             self.end_headers()
