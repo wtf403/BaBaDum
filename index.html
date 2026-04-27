@@ -1,33 +1,223 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <!-- Version: 1.14.0, Build number: 222, Build date: 03/12/2016 18:42:36 -->
 <!-- changeLog: https://babadum.com/ChangeLog.php -->
 <!-- Copyright © Aleksandra Mizielińska & Daniel Mizieliński -->
 <!-- http://hipopotamstudio.pl -->
 <!-- more: https://babadum.com/humans.txt -->
-<html class=no-js lang="en">
-<head>
-	<meta charset=utf-8>
-	<title>Ba Ba Dum</title>
-	<meta name=description content="Play and learn. 1500 words, 21 languages, 5 games.">
-	
-	<meta name=apple-mobile-web-app-capable content=yes>
-	<meta name=apple-mobile-web-app-status-bar-style content=black-translucent>
-	<meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-	<meta property="og:image" content="http://babadum.com/img/FB/28.jpg"/>
-	<link type="text/plain" rel=author href="/humans.txt"/>
-	   
-	<link rel=stylesheet href='style.css'>
+<html class="no-js" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ba Ba Dum</title>
+    <meta
+      name="description"
+      content="Play and learn. 1500 words, 21 languages, 5 games."
+    />
 
-	<script src="modernizr.js"></script>
-	<script>Points=[];Colors={"c_1":{"bg":"53cfd7","stroke":"1f4a69","fill":"b3d753"},"c_3":{"bg":"92adb9","stroke":"a70c1e","fill":"f5f1eb"},"c_4":{"bg":"c28a29","stroke":"6a2906","fill":"ffe861"},"c_5":{"bg":"aab3d5","stroke":"472664","fill":"f8bfe9"},"c_6":{"bg":"f8ef96","stroke":"58281d","fill":"e3a13b"},"c_7":{"bg":"cae193","stroke":"064146","fill":"8dece4"},"c_8":{"bg":"9eebe3","stroke":"1a655f","fill":"faf3a8"},"c_9":{"bg":"99c9ce","stroke":"580f12","fill":"de4555"},"c_10":{"bg":"bfc3f3","stroke":"531863","fill":"faae19"},"c_11":{"bg":"f2c0d7","stroke":"670431","fill":"fa57ac"},"c_12":{"bg":"8cc6e8","stroke":"3b4954","fill":"e5f3a5"},"c_13":{"bg":"a29b34","stroke":"324c2a","fill":"d5ee20"},"c_14":{"bg":"d6dab9","stroke":"51575c","fill":"f7dad4"},"c_15":{"bg":"b9b28d","stroke":"672a19","fill":"ffc524"},"c_16":{"bg":"a8b4bd","stroke":"2a374b","fill":"eef9fc"},"init_color_id":"c_17","c_17":{"bg":"973f7c","stroke":"283843","fill":"7beeef"},"c_18":{"bg":"72a79e","stroke":"183046","fill":"fafd30"},"c_19":{"bg":"d14242","stroke":"55061d","fill":"f5c4bc"},"c_20":{"bg":"594f8c","stroke":"1a1a37","fill":"e2e6bc"},"c_21":{"bg":"b3d350","stroke":"2d4809","fill":"e1fe85"},"c_22":{"bg":"a8f5e7","stroke":"6e3411","fill":"ffd624"},"c_23":{"bg":"b9d24b","stroke":"1d4442","fill":"fef158"},"c_26":{"bg":"a3d076","stroke":"205165","fill":"ffffff"},"c_27":{"bg":"a4d0be","stroke":"561906","fill":"bf7512"},"c_28":{"bg":"c9b173","stroke":"693c11","fill":"faf0e5"},"c_29":{"bg":"84bdbd","stroke":"0e0240","fill":"5146ce"},"c_30":{"bg":"d7dc38","stroke":"492208","fill":"f4751a"},"c_31":{"bg":"81bd47","stroke":"401f5b","fill":"78eced"},"c_32":{"bg":"b1df5d","stroke":"273f03","fill":"d1402e"},"c_33":{"bg":"696969","stroke":"2e2e2e","fill":"b8b8b8"},"c_34":{"bg":"84a5e1","stroke":"252b56","fill":"f6da41"},"c_35":{"bg":"f7ee82","stroke":"51050f","fill":"f04c47"}};GameTypes={"chooseImage":{"id":"1","multiplier":"1","order":0},"oneImage":{"id":"4","multiplier":"3","order":1},"chooseImageSound":{"id":"2","multiplier":"2","order":2},"setLetters":{"id":"3","multiplier":"6","order":3},"shuffleGames":{"id":"5","multiplier":"1","order":4},"kana":{"id":"6","multiplier":"1","order":5}};GameTypesOrder=["chooseImage","oneImage","chooseImageSound","setLetters","shuffleGames","kana"];Langs=[{"code":"gb","name":"British","id":"7","interfaceOnly":"0"},{"code":"us","name":"English","id":"1","interfaceOnly":"0"},{"code":"pl","name":"Polski","id":"2","interfaceOnly":"0"},{"code":"de","name":"Deutsch","id":"3","interfaceOnly":"0"},{"code":"es","name":"Espa\u00f1ol","id":"4","interfaceOnly":"0"},{"code":"fr","name":"Fran\u00e7ais","id":"5","interfaceOnly":"0"},{"code":"it","name":"Italiano","id":"6","interfaceOnly":"0"},{"code":"ru","name":"\u0420\u0443\u0441\u0441\u043a\u0438\u0439","id":"8","interfaceOnly":"0"},{"code":"jp","name":"\u65e5\u672c\u8a9e","id":"9","interfaceOnly":"0"},{"code":"se","name":"Svenska","id":"10","interfaceOnly":"0"},{"code":"gr","name":"\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac","id":"11","interfaceOnly":"0"},{"code":"cz","name":"\u010ce\u0161tina","id":"14","interfaceOnly":"0"},{"code":"lt","name":"Lietuvi\u0173","id":"15","interfaceOnly":"0"},{"code":"pt","name":"Portugu\u00eas","id":"16","interfaceOnly":"0"},{"code":"ro","name":"Rom\u00e2n\u0103","id":"18","interfaceOnly":"0"},{"code":"nl","name":"Nederlands","id":"19","interfaceOnly":"1"},{"code":"af","name":"Afrikaans","id":"20","interfaceOnly":"1"},{"code":"no","name":"Norsk","id":"22","interfaceOnly":"1"},{"code":"hu","name":"Magyar","id":"23","interfaceOnly":"0"},{"code":"da","name":"Dansk","id":"12","interfaceOnly":"0"},{"code":"cn","name":"\u4e2d\u6587","id":"13","interfaceOnly":"0"},{"code":"eo","name":"Esperanto","id":"24","interfaceOnly":"0"},{"code":"tr","name":"T\u00fcrk\u00e7e","id":"25","interfaceOnly":"0"},{"code":"uk","name":"\u0423\u043a\u0440\u0430\u0457\u043d\u044c\u0441\u043a\u0430","id":"26","interfaceOnly":"0"},{"code":"fi","name":"Suomi","id":"27","interfaceOnly":"1"},{"code":"sr","name":"C\u0440\u043f\u0441\u043a\u0438","id":"28","interfaceOnly":"1"},{"id":0,"code":"shuffleLang"}];InterfaceData={data:{"signIn":"Sign in","emailOrName":"Email or nickname","pass":"Password","cb_remember":"Remember me","signUp":"Create account","forgot":"Forgot your password?","email":"Email","name":"Nickname","close":"Close","pass_confirm":"Confirm password","change":"Save changes","iHaveAccount":"I already have an account","error_email":"Invalid email","error_required":"This can't be blank","error_pass_repeat":"Password doesn't match confirmation","pass_current":"Current password","pass_new_confirm":"Confirm new password","pass_new":"New password","error_toShort":"To short (min @minChar)","error_email_exists":"This email is taken","error_name_exists":"This nickname is taken","change2":"My account","resetPass":"Send me reset password link","send":"Send","iRemember":"I think I remember","error_signin_incorrect":"Incorrect password","error_signin_incorrect_mail":"This user doesn't exists","error_signin_login_count_limit":"Login failures limit. Please wait @ min.","cb_agree_to_terms":"I agree to the @terms_link","error_agree_to_terms":"You must agree to the Terms of Service","terms_link":"<a href=\"\/terms\/\" target=\"_blank\">Terms of Service<\/a>","error_server":"Server error","signIn_more":"Sign in to save your progress","signOut":"Sign out","scores":"High scores","credits":"Credits","lang":"Menu language","changePass":"Change Password","error_send_reset_email":"Failed to send reset password email. Try again later.","reset_email_title":"Please check your email","reset_email_body":"Reset link has been sent.","newPass":"Type new password","error_failed_to_reset":"Failed to change password","error_token_expired":"Reset link expired. It was valid for 30 minutes.","changePass_success":"Your password has been changed","play_and_learn":"Play and learn","subtitle":"1500 words, 21 languages, 5 games","play":"Play","cookie":"We use <a href=\"http:\/\/en.wikipedia.org\/wiki\/HTTP_cookie\">cookies<\/a> (<a href=\"\/img\/duh.gif\">duh!<\/a>). Find out <a href=\"\/terms\/\" target=\"_self\">more<\/a>.","t_and_p":"Terms and Privacy","total":"Total","time_week":"Last week","time_month":"Last Month","time_all":"All time","no_scores_week":"No one has played this week.","no_scores_month":"No one has played this month.","stats":"Statistics","stupid_browser":"<span>Warning!<\/span>Stupid browser error","stupid_browser_sub":"Your browser is old.<br\/><a href=\"http:\/\/browsehappy.com\/\">Please try something from this decade.<\/a>","change_game":"Change Game","change_lang":"Change language","points":"Points","progress":"My progress","progress_g_l":"Learned words","progress_limit":"This section is for contributors only.","banner_info":"","progressdemo":"Demo of your progress","donate":"Donate","thankyou":"Thank you","lang_code":"us"}};</script></head>
-<body style="background-color:#973f7c;">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <meta property="og:image" content="http://babadum.com/img/FB/28.jpg" />
+    <link type="text/plain" rel="author" href="/humans.txt" />
 
-	
+    <link rel="stylesheet" href="/style.css" />
 
-	
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="/modernizr.js"></script>
+    <script src="/config.js"></script>
+    <script>
+      Points = [];
+      Colors = {
+        c_1: { bg: "53cfd7", stroke: "1f4a69", fill: "b3d753" },
+        c_3: { bg: "92adb9", stroke: "a70c1e", fill: "f5f1eb" },
+        c_4: { bg: "c28a29", stroke: "6a2906", fill: "ffe861" },
+        c_5: { bg: "aab3d5", stroke: "472664", fill: "f8bfe9" },
+        c_6: { bg: "f8ef96", stroke: "58281d", fill: "e3a13b" },
+        c_7: { bg: "cae193", stroke: "064146", fill: "8dece4" },
+        c_8: { bg: "9eebe3", stroke: "1a655f", fill: "faf3a8" },
+        c_9: { bg: "99c9ce", stroke: "580f12", fill: "de4555" },
+        c_10: { bg: "bfc3f3", stroke: "531863", fill: "faae19" },
+        c_11: { bg: "f2c0d7", stroke: "670431", fill: "fa57ac" },
+        c_12: { bg: "8cc6e8", stroke: "3b4954", fill: "e5f3a5" },
+        c_13: { bg: "a29b34", stroke: "324c2a", fill: "d5ee20" },
+        c_14: { bg: "d6dab9", stroke: "51575c", fill: "f7dad4" },
+        c_15: { bg: "b9b28d", stroke: "672a19", fill: "ffc524" },
+        c_16: { bg: "a8b4bd", stroke: "2a374b", fill: "eef9fc" },
+        init_color_id: "c_17",
+        c_17: { bg: "973f7c", stroke: "283843", fill: "7beeef" },
+        c_18: { bg: "72a79e", stroke: "183046", fill: "fafd30" },
+        c_19: { bg: "d14242", stroke: "55061d", fill: "f5c4bc" },
+        c_20: { bg: "594f8c", stroke: "1a1a37", fill: "e2e6bc" },
+        c_21: { bg: "b3d350", stroke: "2d4809", fill: "e1fe85" },
+        c_22: { bg: "a8f5e7", stroke: "6e3411", fill: "ffd624" },
+        c_23: { bg: "b9d24b", stroke: "1d4442", fill: "fef158" },
+        c_26: { bg: "a3d076", stroke: "205165", fill: "ffffff" },
+        c_27: { bg: "a4d0be", stroke: "561906", fill: "bf7512" },
+        c_28: { bg: "c9b173", stroke: "693c11", fill: "faf0e5" },
+        c_29: { bg: "84bdbd", stroke: "0e0240", fill: "5146ce" },
+        c_30: { bg: "d7dc38", stroke: "492208", fill: "f4751a" },
+        c_31: { bg: "81bd47", stroke: "401f5b", fill: "78eced" },
+        c_32: { bg: "b1df5d", stroke: "273f03", fill: "d1402e" },
+        c_33: { bg: "696969", stroke: "2e2e2e", fill: "b8b8b8" },
+        c_34: { bg: "84a5e1", stroke: "252b56", fill: "f6da41" },
+        c_35: { bg: "f7ee82", stroke: "51050f", fill: "f04c47" },
+      };
+      GameTypes = {
+        chooseImage: { id: "1", multiplier: "1", order: 0 },
+        oneImage: { id: "4", multiplier: "3", order: 1 },
+        chooseImageSound: { id: "2", multiplier: "2", order: 2 },
+        setLetters: { id: "3", multiplier: "6", order: 3 },
+        shuffleGames: { id: "5", multiplier: "1", order: 4 },
+        kana: { id: "6", multiplier: "1", order: 5 },
+      };
+      GameTypesOrder = [
+        "chooseImage",
+        "oneImage",
+        "chooseImageSound",
+        "setLetters",
+        "shuffleGames",
+        "kana",
+      ];
+      Langs = [
+        { code: "gb", name: "British", id: "7", interfaceOnly: "0" },
+        { code: "us", name: "English", id: "1", interfaceOnly: "0" },
+        { code: "pl", name: "Polski", id: "2", interfaceOnly: "0" },
+        { code: "de", name: "Deutsch", id: "3", interfaceOnly: "0" },
+        { code: "es", name: "Espa\u00f1ol", id: "4", interfaceOnly: "0" },
+        { code: "fr", name: "Fran\u00e7ais", id: "5", interfaceOnly: "0" },
+        { code: "it", name: "Italiano", id: "6", interfaceOnly: "0" },
+        {
+          code: "ru",
+          name: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439",
+          id: "8",
+          interfaceOnly: "0",
+        },
+        { code: "jp", name: "\u65e5\u672c\u8a9e", id: "9", interfaceOnly: "0" },
+        { code: "se", name: "Svenska", id: "10", interfaceOnly: "0" },
+        {
+          code: "gr",
+          name: "\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac",
+          id: "11",
+          interfaceOnly: "0",
+        },
+        { code: "cz", name: "\u010ce\u0161tina", id: "14", interfaceOnly: "0" },
+        { code: "lt", name: "Lietuvi\u0173", id: "15", interfaceOnly: "0" },
+        { code: "pt", name: "Portugu\u00eas", id: "16", interfaceOnly: "0" },
+        { code: "ro", name: "Rom\u00e2n\u0103", id: "18", interfaceOnly: "0" },
+        { code: "nl", name: "Nederlands", id: "19", interfaceOnly: "1" },
+        { code: "af", name: "Afrikaans", id: "20", interfaceOnly: "1" },
+        { code: "no", name: "Norsk", id: "22", interfaceOnly: "1" },
+        { code: "hu", name: "Magyar", id: "23", interfaceOnly: "0" },
+        { code: "da", name: "Dansk", id: "12", interfaceOnly: "0" },
+        { code: "cn", name: "\u4e2d\u6587", id: "13", interfaceOnly: "0" },
+        { code: "eo", name: "Esperanto", id: "24", interfaceOnly: "0" },
+        { code: "tr", name: "T\u00fcrk\u00e7e", id: "25", interfaceOnly: "0" },
+        {
+          code: "uk",
+          name: "\u0423\u043a\u0440\u0430\u0457\u043d\u044c\u0441\u043a\u0430",
+          id: "26",
+          interfaceOnly: "0",
+        },
+        { code: "fi", name: "Suomi", id: "27", interfaceOnly: "1" },
+        {
+          code: "sr",
+          name: "C\u0440\u043f\u0441\u043a\u0438",
+          id: "28",
+          interfaceOnly: "1",
+        },
+        { id: 0, code: "shuffleLang" },
+      ];
+      InterfaceData = {
+        data: {
+          signIn: "Sign in",
+          emailOrName: "Email or nickname",
+          pass: "Password",
+          cb_remember: "Remember me",
+          signUp: "Create account",
+          forgot: "Forgot your password?",
+          email: "Email",
+          name: "Nickname",
+          close: "Close",
+          pass_confirm: "Confirm password",
+          change: "Save changes",
+          iHaveAccount: "I already have an account",
+          error_email: "Invalid email",
+          error_required: "This can't be blank",
+          error_pass_repeat: "Password doesn't match confirmation",
+          pass_current: "Current password",
+          pass_new_confirm: "Confirm new password",
+          pass_new: "New password",
+          error_toShort: "To short (min @minChar)",
+          error_email_exists: "This email is taken",
+          error_name_exists: "This nickname is taken",
+          change2: "My account",
+          resetPass: "Send me reset password link",
+          send: "Send",
+          iRemember: "I think I remember",
+          error_signin_incorrect: "Incorrect password",
+          error_signin_incorrect_mail: "This user doesn't exists",
+          error_signin_login_count_limit:
+            "Login failures limit. Please wait @ min.",
+          cb_agree_to_terms: "I agree to the @terms_link",
+          error_agree_to_terms: "You must agree to the Terms of Service",
+          terms_link:
+            '<a href="\/terms\/" target="_blank">Terms of Service<\/a>',
+          error_server: "Server error",
+          signIn_more: "Sign in to save your progress",
+          signOut: "Sign out",
+          scores: "High scores",
+          credits: "Credits",
+          lang: "Menu language",
+          changePass: "Change Password",
+          error_send_reset_email:
+            "Failed to send reset password email. Try again later.",
+          reset_email_title: "Please check your email",
+          reset_email_body: "Reset link has been sent.",
+          newPass: "Type new password",
+          error_failed_to_reset: "Failed to change password",
+          error_token_expired:
+            "Reset link expired. It was valid for 30 minutes.",
+          changePass_success: "Your password has been changed",
+          play_and_learn: "Play and learn",
+          subtitle: "1500 words, 21 languages, 5 games",
+          play: "Play",
+          cookie:
+            'We use <a href="http:\/\/en.wikipedia.org\/wiki\/HTTP_cookie">cookies<\/a> (<a href="\/img\/duh.gif">duh!<\/a>). Find out <a href="\/terms\/" target="_self">more<\/a>.',
+          t_and_p: "Terms and Privacy",
+          total: "Total",
+          time_week: "Last week",
+          time_month: "Last Month",
+          time_all: "All time",
+          no_scores_week: "No one has played this week.",
+          no_scores_month: "No one has played this month.",
+          stats: "Statistics",
+          stupid_browser: "<span>Warning!<\/span>Stupid browser error",
+          stupid_browser_sub:
+            'Your browser is old.<br\/><a href="http:\/\/browsehappy.com\/">Please try something from this decade.<\/a>',
+          change_game: "Change Game",
+          change_lang: "Change language",
+          points: "Points",
+          progress: "My progress",
+          progress_g_l: "Learned words",
+          progress_limit: "This section is for contributors only.",
+          banner_info: "",
+          progressdemo: "Demo of your progress",
+          donate: "Donate",
+          thankyou: "Thank you",
+          lang_code: "us",
+        },
+      };
+    </script>
+  </head>
+  <body style="background-color: #973f7c">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5.0/dist/hanzi-writer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.19.6/dist/index.js"></script>
 
-	<script defer src='app.js'></script>
-</body>
+    <script defer src="/app.js"></script>
+  </body>
 </html>

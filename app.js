@@ -1,3 +1,245 @@
+// DeepL API for Chinese transcription via local proxy
+var DeepLTranscription = {
+  cache: {},
+
+  getApiUrl: function () {
+    return "/api/deepl/translate";
+  },
+
+  getApiKey: function () {
+    return typeof Config !== "undefined" && Config.deepl && Config.deepl.apiKey
+      ? Config.deepl.apiKey
+      : "";
+  },
+
+  getTranscription: function (text, sourceLang, targetLang, callback) {
+    var cacheKey = sourceLang + "_" + targetLang + "_" + text;
+    if (DeepLTranscription.cache[cacheKey]) {
+      callback(DeepLTranscription.cache[cacheKey]);
+      return;
+    }
+
+    var apiKey = DeepLTranscription.getApiKey();
+    var apiUrl = DeepLTranscription.getApiUrl();
+
+    if (!apiKey) {
+      callback("");
+      return;
+    }
+    $.ajax({
+      url: apiUrl,
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({
+        text: text,
+        source_lang: sourceLang.toUpperCase(),
+        target_lang: targetLang.toUpperCase(),
+        auth_key: apiKey,
+      }),
+      success: function (response) {
+        if (response && response.translations && response.translations[0]) {
+          var transcription = response.translations[0].text;
+          DeepLTranscription.cache[cacheKey] = transcription;
+          callback(transcription);
+        } else {
+          callback("");
+        }
+      },
+      error: function (xhr, status, error) {
+        callback("");
+      },
+    });
+  },
+};
+
+// HanziWriter integration for Chinese characters
+var HanziWriterManager = {
+  current: null,
+  isAnimating: false,
+
+  // Shared config for HanziWriter
+  getConfig: function () {
+    return {
+      width: 180,
+      height: 180,
+      padding: 5,
+      strokeColor: "#fff",
+      radicalColor: "#fff",
+      showOutline: false,
+      strokeAnimationSpeed: 2,
+      delayBetweenStrokes: 200,
+      showCharacter: false,
+    };
+  },
+
+  create: function (character, wordData) {
+    // Remove old writer if exists
+    if (HanziWriterManager.current) {
+      $(HanziWriterManager.current.target).empty();
+      HanziWriterManager.current = null;
+    }
+
+    var writerContainer = $('<div class="hanzi-writer-container"></div>');
+    var writerDiv = $('<div class="hanzi-writer"></div>');
+
+    writerContainer.append(writerDiv);
+
+    // Create HanziWriter instance for each character
+    var writers = [];
+    for (var i = 0; i < character.length; i++) {
+      var charDiv = $('<div class="hanzi-char"></div>');
+      writerDiv.append(charDiv);
+
+      if (typeof HanziWriter !== "undefined") {
+        var writer = HanziWriter.create(
+          charDiv[0],
+          character[i],
+          HanziWriterManager.getConfig(),
+        );
+        writers.push(writer);
+
+        // Add click handler for individual character
+        (function (w, idx) {
+          $(charDiv).css("cursor", "pointer");
+          $(charDiv).on("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            w.hideCharacter();
+            setTimeout(function () {
+              w.animateCharacter();
+            }, 100);
+            if (wordData && wordData.sound && !wordData.sound.fake) {
+              wordData.sound.play();
+            }
+          });
+        })(writer, i);
+      }
+    }
+
+    // Animate all characters one by one, chaining them
+    var animateAll = function () {
+      var animateNext = function (index) {
+        if (index >= writers.length) return;
+
+        writers[index].animateCharacter({
+          onComplete: function () {
+            animateNext(index + 1);
+          },
+        });
+      };
+
+      animateNext(0);
+    };
+
+    // Auto-play on load
+    setTimeout(animateAll, 500);
+
+    // Make transcription clickable to replay all
+    var transcriptionClickHandler = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Cancel any ongoing animation
+      if (HanziWriterManager.isAnimating) {
+        HanziWriterManager.isAnimating = false;
+      }
+
+      // Clear all SVG content
+      writerDiv.find("svg").each(function () {
+        $(this).empty();
+      });
+
+      // Recreate writers and animate
+      writers = [];
+      writerDiv.empty();
+      for (var i = 0; i < character.length; i++) {
+        var charDiv = $('<div class="hanzi-char"></div>');
+        writerDiv.append(charDiv);
+
+        if (typeof HanziWriter !== "undefined") {
+          var writer = HanziWriter.create(
+            charDiv[0],
+            character[i],
+            HanziWriterManager.getConfig(),
+          );
+          writers.push(writer);
+
+          // Add click handler for individual character
+          (function (w, idx) {
+            $(charDiv).css("cursor", "pointer");
+            $(charDiv).on("click", function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              w.hideCharacter();
+              setTimeout(function () {
+                w.animateCharacter();
+              }, 100);
+              if (wordData && wordData.sound && !wordData.sound.fake) {
+                wordData.sound.play();
+              }
+            });
+          })(writer, i);
+        }
+      }
+
+      // Animate all characters one by one, chaining them
+      HanziWriterManager.isAnimating = true;
+      var animateNext = function (index) {
+        if (!HanziWriterManager.isAnimating || index >= writers.length) {
+          HanziWriterManager.isAnimating = false;
+          return;
+        }
+
+        writers[index].animateCharacter({
+          onComplete: function () {
+            if (HanziWriterManager.isAnimating) {
+              animateNext(index + 1);
+            }
+          },
+        });
+      };
+
+      animateNext(0);
+
+      // Play sound
+      if (wordData && wordData.sound && !wordData.sound.fake) {
+        wordData.sound.play();
+      }
+      return false;
+    };
+
+    HanziWriterManager.current = {
+      target: writerContainer[0],
+      writers: writers,
+      animateAll: animateAll,
+      transcriptionClickHandler: transcriptionClickHandler,
+    };
+
+    return writerContainer;
+  },
+
+  clear: function () {
+    if (HanziWriterManager.current && HanziWriterManager.current.writers) {
+      HanziWriterManager.current.writers.forEach(function (writer) {
+        writer.hideCharacter();
+      });
+    }
+    $(".transcription-text").remove();
+    $(".word-container").remove();
+    $(".hanzi-writer-container").remove();
+  },
+};
+
+// Pinyin helper
+var PinyinHelper = {
+  getPinyin: function (text) {
+    if (typeof pinyinPro !== "undefined" && pinyinPro.pinyin) {
+      return pinyinPro.pinyin(text, { toneType: "symbol" });
+    }
+    return "";
+  },
+};
+
 var Assets = {
   thumbUp:
     '<div class="thumbs thumbs_off SVGcontainer" id="thumbUp"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="100%" height="100%" viewBox="0 0 100 100" enable-background="new 0 0 100 100" xml:space="preserve"><path class="stroke" d="M96.952,56.525c0.652-1.496,0.786-3.079,0.699-4.674c-0.098-1.824-0.9-3.445-1.668-5.062c-0.168-0.354-0.41-0.68-0.663-0.982c-1.355-1.627-3.16-2.589-5.084-3.35c-0.807-0.319-1.551-0.726-2.278-1.192c-0.609-0.391-1.244-0.781-1.921-1.022c-2.304-0.826-4.661-1.347-7.137-1.071c-1.472,0.165-2.941,0.321-4.414,0.458c-0.899,0.083-1.804,0.167-2.706,0.17c-0.767,0.002-1.53-0.125-2.285-0.437c0.144-0.464,0.267-0.91,0.424-1.342c0.701-1.93,1.38-3.866,1.785-5.883c0.38-1.881,0.807-3.754,1.116-5.646c0.21-1.282,0.237-2.593,0.375-3.886c0.12-1.113,0.03-2.208-0.223-3.288c-0.306-1.31-0.691-2.603-0.972-3.919c-0.331-1.563-0.909-3-1.949-4.223c-0.832-0.976-1.721-1.867-3.166-1.734C66.801,9.449,66.713,9.41,66.625,9.4c-1.514-0.168-2.959,0.041-4.249,0.895c-0.585,0.387-1.111,0.864-1.69,1.322c-0.053,0-0.142,0.007-0.228-0.001c-0.66-0.066-1.128,0.224-1.352,0.828c-0.237,0.637-0.485,1.286-0.591,1.952c-0.186,1.174-0.278,2.365-0.391,3.55c-0.164,1.749-0.095,3.494,0.378,5.189c0.175,0.623,0.16,1.169-0.12,1.721c-0.95,1.877-1.623,3.862-2.332,5.836c-0.227,0.632-0.597,1.233-0.998,1.776c-0.985,1.327-2.152,2.513-2.966,3.969c-0.592,1.057-1.241,2.082-1.829,3.14c-0.458,0.829-0.854,1.693-1.299,2.53c-0.175,0.329-0.383,0.649-0.623,0.931c-1.326,1.54-2.637,3.094-4.011,4.589c-0.983,1.071-2.071,2.048-3.089,3.09c-0.35,0.357-0.63,0.783-0.961,1.203c-1.436,0.124-2.861,0.323-4.29,0.354c-2.411,0.054-23.859,0.428-26.938,0.645c-0.48,0.035-0.955,0.115-1.435,0.149c-2.036,0.145-4.072,0.284-6.108,0.418c-1.075,0.069-2.154,0.105-3.228,0.196c-0.678,0.057-1.282,0.278-1.49,0.842c-0.099,0.269-0.077,0.565-0.103,0.786c0.034,0.045,0.066,0.085,0.097,0.128c0.003,0.011,0,0.02,0.003,0.03c0.353,2.527,0.038,5.312,0,7.863c-0.038,2.597,0.051,5.177,0.104,7.771c0.107,5.29-0.122,10.562-0.136,15.851c0,0.244,0.09,0.431,0.224,0.563c0.024,0.06,0.052,0.118,0.085,0.179c0.347,0.116,0.77,0.288,1.216,0.405c1.171,0.306,2.355,0.134,3.538,0.021c1.267-0.119,2.536-0.216,3.805-0.324c1.353-0.116,2.708-0.216,4.057-0.357c1.488-0.157,21.919-0.405,23.078-0.519c1.581-0.154,3.171-0.213,4.755-0.323c0.438-0.03,0.873-0.131,1.312-0.145c1.542-0.052,3.084-0.085,4.627-0.112c0.992-0.019,1.985-0.014,2.979-0.021c0.948-0.007,1.896-0.029,2.844-0.02c0.505,0.006,1.067-0.065,1.502,0.127c1.154,0.507,2.387,0.625,3.591,0.854c1.318,0.252,2.66,0.399,3.997,0.543c1.491,0.16,2.989,0.255,4.484,0.396c2.973,0.282,5.907,0.015,8.814-0.609c0.815-0.175,1.607-0.463,2.468-0.717c0.759,0.372,1.63,0.478,2.518,0.502c0.97,0.027,1.939,0.082,2.909,0.09c1.013,0.009,2.026-0.059,3.038-0.033c1.743,0.044,3.486,0.206,5.228,0.183c1.353-0.019,2.597-0.513,3.591-1.484c0.854-0.835,1.633-1.726,2.287-2.737c1.236-1.918,1.421-3.853,0.296-5.874c-0.21-0.378-0.4-0.768-0.591-1.134c0.517-0.408,1.014-0.744,1.443-1.151c1.078-1.022,1.736-2.257,1.485-3.781c-0.158-0.974-0.378-1.951-0.898-2.824c-0.268-0.451-0.499-0.923-0.714-1.321c0.589-0.817,1.187-1.581,1.702-2.396c0.213-0.335,0.325-0.778,0.353-1.181c0.109-1.658-0.295-3.229-0.859-4.691c0.195-0.438,0.384-0.83,0.548-1.232C96.636,57.397,96.768,56.95,96.952,56.525z"/><path class="fill" d="M68.951,18.211c-0.036-0.881-0.129-1.76-0.217-2.638c-0.042-0.439-0.136-0.872-0.187-1.311c-0.087-0.751-0.325-1.449-0.668-2.123c-0.341-0.676-0.863-1.021-1.616-1.077c-1.485-0.111-2.718,0.428-3.783,1.423c-0.043,0.041-0.058,0.112-0.101,0.199c0.419,0.204,0.826,0.408,1.237,0.601c0.447,0.212,0.655,0.574,0.664,1.056c0.043,2.341-0.187,4.63-1.212,6.782c-0.333,0.697-0.803,1.295-1.407,1.733c-1.037,0.751-1.572,1.813-2.067,2.93c-0.339,0.766-0.754,1.498-1.072,2.27c-0.318,0.773-0.568,1.575-0.83,2.371c-0.089,0.271-0.13,0.559-0.178,0.842c-0.183,1.086-0.74,1.96-1.475,2.759c-1.2,1.302-2.27,2.702-3.035,4.313c-0.189,0.396-0.436,0.766-0.641,1.156c-0.634,1.202-0.894,2.536-1.295,3.817c-0.411,1.305-0.919,2.526-1.979,3.458c-0.361,0.316-0.614,0.753-0.954,1.1c-0.726,0.74-1.464,1.472-2.222,2.179c-1.114,1.043-1.927,2.287-2.553,3.666c-0.466,1.024-0.944,2.041-1.418,3.062c-0.521,1.119-1.516,1.497-2.633,1.616c-0.714,0.076-1.14-0.244-1.379-0.939c0.341-0.823,0.699-1.692,1.113-2.691c-0.779,0.123-1.426,0.224-2.071,0.331c-1.219,0.203-2.438,0.406-3.653,0.615c-1.045,0.178-21.145,0.385-22.492,0.54c-2.392,0.275-4.795,0.427-7.219,0.352c-1.388-0.044-2.78,0.005-4.17,0.015c-0.754,0.005-1.467-0.097-2.11-0.463c-0.123-0.162-0.502-0.656-0.646-0.844c0.043,5.16-0.1,10.634,0.182,15.793c0.269,4.916-0.254,10.24-0.251,15.158c0.545-0.591,2.17-1.391,3.028-1.427c1.701-0.07,3.405-0.108,5.104-0.19c1.644-0.08,3.284-0.216,4.927-0.298c1.134-0.057,2.272-0.047,3.406-0.096c2.41-0.104,22.604-0.201,24.472-0.354c1.626-0.132,3.255-0.279,4.866-0.53c1.324-0.206,2.624-0.569,3.935-0.87c0.124-0.027,0.239-0.103,0.396-0.172c-0.021-0.225-0.048-0.438-0.058-0.653c-0.06-1.449,0.554-2.537,1.736-3.361c1.168-0.815,2.352-0.721,3.579-0.197c1.625,0.693,2.947,1.785,4.01,3.17c0.648,0.848,1.458,1.368,2.483,1.477c0.916,0.096,1.847,0.063,2.771,0.064c0.315,0,0.614-0.098,0.821-0.526c-0.318-1.053-0.662-2.184-1.005-3.316c-0.383-1.272-0.473-2.549-0.078-3.839c0.239-0.777,0.469-1.559,0.687-2.343c0.189-0.684-0.066-1.252-0.555-1.85c-0.223,0-0.521-0.07-0.769,0.011c-1.271,0.423-2.606,0.454-3.908,0.689c-1.459,0.261-2.903,0.159-4.333-0.167c-1.344-0.308-2.5-0.973-3.483-1.939c-0.155-0.153-0.297-0.321-0.48-0.521c0.084-0.126,0.174-0.26,0.274-0.41c1.518,0.406,2.956,0.111,4.386-0.317c0.421-0.126,0.859-0.197,1.281-0.314c1.114-0.309,1.997-1.013,2.891-1.698c0.229-0.174,0.467-0.335,0.701-0.5c0.127-0.09,0.276-0.155,0.377-0.269c0.822-0.921,1.679-1.815,2.436-2.788c0.579-0.746,1.049-1.582,1.532-2.398c0.6-1.016,1.019-2.11,1.193-3.279c0.255-1.709,0.261-3.437,0.158-5.153c-0.104-1.71-0.575-3.345-1.333-4.888c-0.106-0.217-0.206-0.438-0.305-0.66c-0.025-0.059-0.032-0.124-0.072-0.279c0.316-0.277,0.631-0.621,1.01-0.871c0.921-0.609,1.403-1.488,1.706-2.517c0.506-1.729,0.72-3.498,0.828-5.287c0.037-0.617,0.076-1.235,0.154-1.847c0.106-0.839,0.113-1.679-0.033-2.504c-0.107-0.606,0.109-1.061,0.515-1.417c1.239-1.088,1.972-2.488,2.422-4.022c0.314-1.075,0.419-2.209,0.658-3.308c0.206-0.948,0.025-1.891,0.042-2.835C69.006,20.376,68.995,19.293,68.951,18.211z M37.733,70.647c-0.173-0.026-0.371,0.002-0.478-0.084c-0.355-0.288-0.691-0.602-1.006-0.935c-0.301-0.316-0.537-0.695-0.846-1.001c-1.401-1.384-1.777-3.039-1.311-4.909c0.205-0.826,0.617-1.178,1.603-1.417c0.174,0.186,0.349,0.372,0.561,0.596c-0.072,0.455-0.137,0.908-0.217,1.36c-0.318,1.788-0.133,3.462,1.076,4.916C37.449,69.576,37.828,69.963,37.733,70.647z M44.385,77.941c-0.387,0.301-0.688,0.224-1.028-0.118c0-0.175-0.007-0.392,0.001-0.609c0.081-2.333-0.564-4.504-1.588-6.559c-0.336-0.674-0.916-1.241-1.445-1.8c-0.851-0.9-1.724-1.785-2.275-2.908c-0.665-1.355-0.84-3.187,0.219-4.443c0.406-0.483,0.864-0.813,1.542-0.691c0.328,0.32,0.293,0.694,0.126,1.043c-0.664,1.378-0.528,2.694,0.25,3.977c0.63,1.036,1.285,2.06,1.885,3.114c0.776,1.367,1.357,2.823,1.797,4.331c0.191,0.657,0.328,1.328,0.472,1.997c0.069,0.322,0.135,0.654,0.134,0.983C44.471,76.827,44.416,77.398,44.385,77.941z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M79.24,47.265c-0.707-0.13-1.308-0.259-1.913-0.345c-0.391-0.058-0.629-0.268-0.83-0.583c-0.451-0.706-0.917-1.406-1.391-2.099c-0.131-0.191-0.313-0.348-0.562-0.617c-0.154,0.154-0.258,0.258-0.349,0.35c0.496,1.082,1.147,1.969,1.297,3.145c-0.435-0.043-0.82-0.079-1.179-0.115c-1.299-1.775-1.714-1.947-3.179-2.725c-0.104,0.113-0.217,0.234-0.344,0.373c0.315,0.438,0.632,0.832,0.898,1.258c0.353,0.564,0.262,1.211-0.256,1.804c-0.152-0.309-0.308-0.585-0.429-0.876c-0.297-0.715-0.771-1.268-1.395-1.722c-0.996-0.724-1.236-1.81-0.679-3.031c0.34,0,0.723-0.068,1.073,0.014c0.869,0.203,1.712,0.084,2.56-0.085c1.124-0.223,2.248-0.448,3.372-0.667c1.644-0.32,3.296-0.246,4.95-0.134c0.528,0.036,1.058,0.066,1.586,0.109c1.544,0.126,2.873,0.854,4.17,1.6c1.363,0.785,2.815,1.362,4.231,2.026c1.397,0.653,2.556,1.612,3.534,2.823c0.679,0.842,1.007,1.786,1.223,2.813c0.155,0.742,0.084,1.467-0.167,2.151c-0.378,1.033-0.842,2.034-1.268,3.049c-0.303,0.723-0.843,1.197-1.591,1.38c-1.005,0.247-2.017,0.495-3.039,0.637c-2.098,0.288-4.203,0.521-6.31,0.746c-0.876,0.092-1.762,0.086-2.642,0.154c-1.098,0.086-2.155-0.123-3.205-0.382c-0.68-0.169-1.349-0.388-1.949-0.561c-0.212-1.12-0.359-2.146-0.604-3.146c-0.361-1.464-0.825-2.896-2.048-3.917c-0.661-0.553-1.319-1.114-2.286-1.233c0.21-0.303,0.475-0.327,0.715-0.382c1.682-0.382,3.333-0.17,4.97,0.27c0.043,0.012,0.084,0.029,0.128,0.04c1.212,0.303,2.365,0.718,3.207,1.74c0.435-0.155,0.832-0.283,1.217-0.44c1.669-0.679,3.391-0.947,5.184-0.696c0.152,0.021,0.312,0.036,0.463,0.013c0.257-0.039,0.51-0.11,0.763-0.167c0.149-0.599-0.184-0.937-0.625-1.112c-0.673-0.268-1.377-0.463-2.076-0.65c-0.553-0.15-1.121-0.246-1.684-0.355c-0.442-0.086-0.754-0.33-0.954-0.711c0.44-1.607,0.44-1.68-0.021-2.24c-0.324-0.086-0.547,0.105-0.751,0.309c-0.599,0.592-1.01,1.296-1.08,2.143c-0.049,0.608-0.008,1.223-0.008,1.895c-0.438-0.143-0.603-0.439-0.658-0.785C79.254,47.988,79.263,47.637,79.24,47.265z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M70.784,66.23c0.287-0.082,0.425-0.127,0.565-0.159c0.846-0.193,1.571-0.582,2.075-1.312c0.134-0.193,0.248-0.416,0.312-0.642c0.271-0.975,0.315-1.956,0.025-2.938c-0.043-0.146-0.079-0.298-0.116-0.447c-0.005-0.018,0.009-0.038,0.033-0.127c0.318,0.128,0.633,0.253,0.946,0.38c1.094,0.443,2.255,0.594,3.398,0.837c1.306,0.276,2.627,0.292,3.946,0.255c1.879-0.053,3.733-0.326,5.571-0.713c0.991-0.208,1.994-0.378,2.97-0.645c0.696-0.191,1.356-0.518,2.034-0.781c0.138-0.054,0.283-0.087,0.413-0.125c1.339,1.85,0.975,4.296-0.058,5.824c-0.286,0.426-0.843,0.693-1.315,0.963c-1.35,0.769-2.796,1.333-4.311,1.639c-1.138,0.229-2.316,0.279-3.48,0.354c-3.207,0.205-6.334-0.271-9.424-1.104c-0.936-0.252-1.903-0.391-2.777-0.844C71.366,66.529,71.139,66.413,70.784,66.23z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M89.782,78.182c0.583,0.311,1.314,0.481,1.868,1.062c-0.019,0.919-0.237,1.81-0.565,2.679c-0.181,0.477-0.405,0.922-0.794,1.278c-0.543,0.498-1.152,0.801-1.896,0.837c-1.521,0.069-3.043,0.191-4.565,0.218c-2.359,0.04-4.723,0.016-7.055-0.401c-1.41-0.25-2.815-0.545-4.203-0.899c-0.998-0.256-1.968-0.632-2.943-0.973c-0.265-0.093-0.504-0.253-0.872-0.442c1.541-0.798,2.349-1.974,2.319-3.725c0.309,0.07,0.547,0.093,0.759,0.179c1.288,0.521,2.662,0.601,4.017,0.783c0.591,0.079,1.186,0.19,1.777,0.186c2.447-0.022,4.894-0.075,7.34-0.132c0.793-0.02,1.593-0.034,2.376-0.14C88.127,78.586,88.894,78.372,89.782,78.182z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M69.467,73.75c1.084-0.998,1.397-1.248,1.908-3.555c0.192,0.139,0.399,0.226,0.517,0.381c0.657,0.859,1.634,1.189,2.577,1.551c2.423,0.926,4.938,1.35,7.532,1.219c2.041-0.103,4.019-0.568,5.945-1.228c1.357-0.464,2.69-0.992,4.035-1.487c0.164-0.061,0.336-0.095,0.551-0.153c0.595,0.989,0.788,2.038,0.655,3.176c-0.533,0.51-1.172,0.82-1.838,1.038c-1.891,0.618-3.824,1.081-5.783,1.411c-2.178,0.367-4.38,0.453-6.594,0.357c-1.639-0.069-3.256-0.253-4.868-0.512c-1.235-0.201-2.376-0.685-3.458-1.291C70.234,74.427,69.887,74.079,69.467,73.75z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M69.943,50.454c1.738,0.531,2.687,1.783,3.34,3.276c0.35,0.798,0.548,1.669,0.769,2.52c0.158,0.61,0.065,1.225-0.178,1.823c-0.585,0.451-1.22,0.398-1.88,0.205c-1.669-0.487-2.983-1.481-4.068-2.812c-0.237-0.29-0.465-0.587-0.707-0.872c-0.317-0.371-0.381-0.797-0.233-1.241C67.472,51.882,68.364,50.815,69.943,50.454z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M68.239,57.555c0.861,0.688,1.833,1.05,2.803,1.404c0.329,0.12,0.576,0.301,0.771,0.58c0.821,1.176,1.071,2.442,0.595,3.818c-0.36,1.044-1.243,1.563-2.316,1.357c-0.433-0.083-0.871-0.167-1.28-0.319c-0.384-0.144-0.795-0.312-1.088-0.585c-0.544-0.509-1.036-1.079-1.497-1.666c-0.339-0.433-0.403-0.943-0.256-1.502C66.314,59.326,67.026,58.296,68.239,57.555z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M66.29,65.37c1.232,0.896,2.476,1.798,3.697,2.685c0.285,1.264,0.096,2.414-0.462,3.509c-0.509,0.995-1.462,1.364-2.442,0.85c-0.955-0.501-1.849-1.114-2.485-2.031c-0.277-0.4-0.416-0.818-0.371-1.301c0.136-1.438,0.619-2.699,1.812-3.605c0.052-0.038,0.113-0.067,0.172-0.097C66.229,65.37,66.252,65.374,66.29,65.37z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M69.769,77.179c0.325,0.86-0.078,2.265-0.869,2.696c-0.151,0.081-0.329,0.157-0.495,0.157c-1.321,0.003-2.624-0.211-3.754-0.892c-0.908-0.549-1.541-1.378-1.443-2.57c0.071-0.87,0.245-1.705,0.702-2.457c0.167-0.275,0.396-0.513,0.602-0.771C66.253,74.613,67.937,75.843,69.769,77.179z"/><path class="fill" fill-rule="evenodd" clip-rule="evenodd" d="M60.085,13.428c1.177-0.004,2.028,0.644,3.028,0.955c0,0.528,0.035,0.989-0.006,1.442c-0.112,1.207-0.229,2.412-0.638,3.571c-0.43,1.217-1.258,2.049-2.382,2.621c-0.089,0.045-0.207,0.037-0.389,0.066C59.327,19.175,59.624,16.346,60.085,13.428z"/></svg></div>',
@@ -998,6 +1240,150 @@ function BumText(b, a, c) {
     $(this.canvas).insertBefore(
       this.setId ? Icons.langs.container : Game.f_canvas,
     );
+
+  // Add Chinese HanziWriter or clickable word for audio
+  if (this.wordLabel && !a.canvas && !c) {
+    var self = this;
+
+    // Remove transform style from wordLabel
+    $(this.canvas).css("transform", "");
+
+    // Create container structure
+    var container = $('<div class="word-container"></div>');
+    var wordWithButton = $('<div class="word-with-button"></div>');
+
+    var isChinese = Game.langCode == "cn";
+
+    if (isChinese) {
+      // For Chinese: use HanziWriter instead of canvas
+      var hanziWriter = HanziWriterManager.create(this.text, Words.current);
+      wordWithButton.append(hanziWriter);
+
+      // Add pinyin below with click handler
+      var pinyinText = PinyinHelper.getPinyin(this.text);
+      if (pinyinText) {
+        var pinyinEl = $('<div class="transcription-text"></div>');
+        pinyinEl.text(pinyinText);
+        pinyinEl.css("cursor", "pointer");
+        pinyinEl.on("click touchend", function (e) {
+          if (
+            HanziWriterManager.current &&
+            HanziWriterManager.current.transcriptionClickHandler
+          ) {
+            HanziWriterManager.current.transcriptionClickHandler(e);
+          }
+        });
+        wordWithButton.append(pinyinEl);
+      }
+
+      container.append(wordWithButton);
+      $(this.canvas).replaceWith(container);
+
+      // Pre-fetch translation for Chinese
+      var targetLang = InterfaceData.data.lang_code || "en";
+      var langMap = {
+        gb: "EN",
+        us: "EN",
+        cn: "ZH",
+        jp: "JA",
+        de: "DE",
+        es: "ES",
+        fr: "FR",
+        it: "IT",
+        pl: "PL",
+        pt: "PT",
+        ru: "RU",
+        nl: "NL",
+        se: "SV",
+        da: "DA",
+        cz: "CS",
+        gr: "EL",
+        hu: "HU",
+        ro: "RO",
+        tr: "TR",
+      };
+      var targetDeepL = langMap[targetLang] || "EN";
+
+      if (targetDeepL !== "ZH" && Words.current) {
+        Words.current.translationText = null;
+        DeepLTranscription.getTranscription(
+          this.text,
+          "ZH",
+          targetDeepL,
+          function (transcription) {
+            if (transcription && Words.current) {
+              Words.current.translationText = transcription;
+            }
+          },
+        );
+      }
+    } else {
+      // For other languages: wrap canvas and make it clickable
+      $(this.canvas).wrap(wordWithButton);
+      $(this.canvas).parent().wrap(container);
+
+      if (Words.current && Words.current.sound) {
+        $(this.canvas).addClass("clickable-word");
+        $(this.canvas).css("cursor", "pointer");
+        $(this.canvas).on("click touchend", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (
+            Words.current &&
+            Words.current.sound &&
+            !Words.current.sound.fake
+          ) {
+            Words.current.sound.play();
+          }
+          return false;
+        });
+      }
+
+      // Pre-fetch translation for later reveal
+      var sourceLang = Game.langCode;
+      var targetLang = InterfaceData.data.lang_code || "en";
+
+      var langMap = {
+        gb: "EN",
+        us: "EN",
+        cn: "ZH",
+        jp: "JA",
+        de: "DE",
+        es: "ES",
+        fr: "FR",
+        it: "IT",
+        pl: "PL",
+        pt: "PT",
+        ru: "RU",
+        nl: "NL",
+        se: "SV",
+        da: "DA",
+        cz: "CS",
+        gr: "EL",
+        hu: "HU",
+        ro: "RO",
+        tr: "TR",
+      };
+
+      var sourceDeepL = langMap[sourceLang] || "EN";
+      var targetDeepL = langMap[targetLang] || "EN";
+
+      if (sourceDeepL !== targetDeepL && Words.current) {
+        Words.current.translationText = null;
+        DeepLTranscription.getTranscription(
+          this.text,
+          sourceDeepL,
+          targetDeepL,
+          function (transcription) {
+            if (transcription && Words.current) {
+              Words.current.translationText = transcription;
+            }
+          },
+        );
+      }
+    }
+  }
+
   this.setId || (BumText.arr[this.id] = this);
   return this;
 }
@@ -2589,22 +2975,20 @@ Game = {
       };
       if (Game.gameType == "kana") b.hiragana = Words.current.words[a].hiragana;
       AJAX.post(b);
-      if (a != -1 && Words.current.words[a].word_key == Words.current.id)
-        (Thumb.up.show(
+      if (a != -1 && Words.current.words[a].word_key == Words.current.id) {
+        Thumb.up.show(
           Words.current.is_choose && Game.gameType != "kana"
             ? Colors[VAR.color_id]
             : Colors["c_" + Words.current.color],
           Words.current.is_choose ? 450 : 700,
-        ),
-          Sounds.play("correct"),
-          (Words.current.is_correct = !0),
-          Words.current.game == "oneImage" &&
-            Game.currentTexts[Game.currentTexts.length - 1].markWord(a),
-          UserPoints.changePoints(
-            Words.current.real_m,
-            Words.current.lang_key,
-          ));
-      else {
+        );
+        Sounds.play("correct");
+        Words.current.is_correct = !0;
+        Words.current.game == "oneImage" &&
+          Game.currentTexts[Game.currentTexts.length - 1].markWord(a);
+        UserPoints.changePoints(Words.current.real_m, Words.current.lang_key);
+        Game.showTranslationAfterAnswer(Words.current.words[a].word);
+      } else {
         b = 0;
         if (Game.currentGame != "setLetters")
           for (b = 0; b < Words.current.words.length; b++)
@@ -2625,6 +3009,7 @@ Game = {
             )
           : Words.current.game == "oneImage" &&
             Game.currentTexts[Game.currentTexts.length - 1].markWord(b, a);
+        Game.showTranslationAfterAnswer(Words.current.words[b].word);
       }
       Words.current.is_choose &&
         new BgCircle(
@@ -2634,7 +3019,7 @@ Game = {
         );
       Game.currentGame == "oneImage" || Game.currentGame == "setLetters"
         ? ((Game.soundDelay = !0),
-          (Game.changeDelay = Words.current.is_correct ? 150 : 350))
+          (Game.changeDelay = Words.current.is_correct ? 2000 : 350))
         : ((Game.soundDelay = !1),
           (Game.changeDelay = Game.constChangeDaley + 250));
       $(window)
@@ -2670,6 +3055,54 @@ Game = {
       !window.audioNotImplemented &&
       !Words.current.sound.fake &&
       Words.current.sound.play();
+  },
+  showTranslationAfterAnswer: function (word) {
+    var isChinese = Game.langCode == "cn";
+    var targetElement;
+
+    if (isChinese) {
+      // For Chinese, find the hanzi-writer-container
+      targetElement = $(".hanzi-writer-container").first();
+      if (!targetElement.length) {
+        targetElement = $(".word-container").first();
+      }
+    } else {
+      // For other languages, find canvas
+      targetElement = $(".word-container canvas").first();
+      if (!targetElement.length) {
+        targetElement = $(".wordLabel canvas").first();
+      }
+      if (!targetElement.length) {
+        targetElement = $("canvas.text.wordLabel").first();
+      }
+    }
+
+    if (!targetElement.length) return;
+
+    var originalParent = isChinese
+      ? targetElement.parent()
+      : targetElement.parent();
+
+    // Use pre-fetched translation for all languages including Chinese
+    if (Words.current && Words.current.translationText) {
+      var colorObj = Colors["c_" + Words.current.color];
+      var tempText = new BumText(
+        Words.current.translationText,
+        {
+          fill: "#" + colorObj.fill,
+          stroke: "#" + colorObj.stroke,
+          wordLabel: true,
+        },
+        true,
+      );
+      targetElement.hide();
+      // Also hide transcription text for Chinese
+      if (isChinese) {
+        $(".transcription-text").hide();
+      }
+      originalParent.append(tempText.canvas);
+      $(tempText.canvas).addClass("translation-overlay");
+    }
   },
   draw: function () {
     var a = Game._currentImage;
@@ -2817,6 +3250,7 @@ Game = {
   changeWords: function (a) {
     Game.hideUnderscore();
     BgCircle.removeAll();
+    HanziWriterManager.clear();
     Game.setActive(!1);
     if (
       window.initationComplete &&
@@ -2844,6 +3278,9 @@ Game = {
         a.is_choose = Game.currentGame.slice(0, 6) == "choose";
         Game.gameType == "kana" && Game.getKanaSize();
         Game._tmpTSet.length = 0;
+        $(".translation-overlay").remove();
+        $(".word-container canvas").show();
+        $(".wordLabel canvas").show();
         Game._obj = {
           font_size: !a.is_choose ? Math.round((VAR.wH * 0.24) / 4) : void 0,
           wordLabel: !0,
@@ -2949,6 +3386,7 @@ Game = {
     }
   },
   removeImages: function () {
+    HanziWriterManager.clear();
     if (Game._currentImage.length > 0) {
       Game._is_choose =
         Game.currentGame && Game.currentGame.slice(0, 6) == "choose";
