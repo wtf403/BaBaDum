@@ -1654,8 +1654,10 @@ em {
 }
 
 .transcription-text {
-  font-family: sans-serif;
-  font-size: 2em;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  font-size: 2.5em;
   text-align: center;
   color: #fff;
   opacity: 1;
@@ -1663,6 +1665,11 @@ em {
   letter-spacing: 0.05em;
   width: 100%;
   cursor: pointer;
+  text-shadow:
+    2px 2px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
 }
 
 .clickable-word {
@@ -1695,7 +1702,7 @@ em {
 .hanzi-char {
   width: 180px;
   height: 180px;
-  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+  filter: drop-shadow(2px 2px 0 #000);
   display: inline-block;
   flex-shrink: 0;
   position: relative;
@@ -1714,7 +1721,7 @@ em {
 
 @media (max-width: 768px) {
   .transcription-text {
-    font-size: 1.5em;
+    font-size: 1.2em;
   }
   .word-container {
     gap: 10px;
