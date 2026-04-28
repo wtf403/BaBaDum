@@ -1240,13 +1240,14 @@ function BumText(b, a, c) {
         ro: "RO",
         tr: "TR",
       };
+      var sourceDeepL = "ZH";
       var targetDeepL = langMap[targetLang] || "EN";
 
-      if (targetDeepL !== "ZH" && Words.current) {
+      if (sourceDeepL !== targetDeepL && Words.current) {
         Words.current.translationText = null;
         DeepLTranscription.getTranscription(
           this.text,
-          "ZH",
+          sourceDeepL,
           targetDeepL,
           function (transcription) {
             if (transcription && Words.current) {

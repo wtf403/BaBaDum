@@ -32,6 +32,20 @@ jobs:
             ./ \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:/var/www/babadum.xyz/
 
+      - name: Create config.js with API key
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 22 \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
+            'cd /var/www/babadum.xyz && \
+             cat > config.js << EOF
+var Config = {
+  deepl: {
+    apiKey: "${{ secrets.DEEPL_API_KEY }}",
+    useFreeApi: true,
+  },
+};
+EOF'
+
       - name: Restart Python server
         run: |
           ssh -i ~/.ssh/deploy_key -p 22 \
