@@ -2960,7 +2960,7 @@ Game = {
         ? ((Game.soundDelay = !0),
           (Game.changeDelay = Words.current.is_correct ? 3000 : 3000))
         : ((Game.soundDelay = !1),
-          (Game.changeDelay = Game.constChangeDaley + 250));
+          (Game.changeDelay = 3000));
       $(window)
         .off("gameTik", Game.changeWordsDelay)
         .on("gameTik", Game.changeWordsDelay);
@@ -6876,7 +6876,18 @@ function UserPoints() {
   this.sum_label = new PointsDisplay("points_sum");
   this.el.append(this.sum_label.el);
   this.el.append(this.lang_label.el);
-  window.Points ? ((this.p = Points), delete window.Points) : (this.p = {});
+  if (window.Points) {
+    this.p = Points;
+    delete window.Points;
+  } else if (Modernizr.localstorage && localStorage.userPoints) {
+    try {
+      this.p = JSON.parse(localStorage.userPoints);
+    } catch (e) {
+      this.p = {};
+    }
+  } else {
+    this.p = {};
+  }
   window.UserPoints = this;
   this.layout();
   $(window).on("globalLayout", this.layout);
@@ -6922,6 +6933,11 @@ UserPoints.prototype.changePoints = function (a, b) {
     this.p["l_" + this.lang] ? this.p["l_" + this.lang] + a : a,
   );
   this.updateDisplay();
+  if (Modernizr.localstorage) {
+    try {
+      localStorage.userPoints = JSON.stringify(this.p);
+    } catch (e) {}
+  }
 };
 UserPoints.prototype.updateDisplay = function () {
   this.sum_label.change(this.getSum());
