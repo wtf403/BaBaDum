@@ -35,6 +35,13 @@
     <script src="/modernizr.js"></script>
     <script src="/config.js"></script>
     <script>
+      // Load UserData from localStorage if available
+      if (typeof(Storage) !== "undefined" && localStorage.userData) {
+        try {
+          UserData = JSON.parse(localStorage.userData);
+        } catch(e) {}
+      }
+
       Points = [];
       Colors = {
         c_1: { bg: "53cfd7", stroke: "1f4a69", fill: "b3d753" },

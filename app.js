@@ -2958,9 +2958,9 @@ Game = {
         );
       Game.currentGame == "oneImage" || Game.currentGame == "setLetters"
         ? ((Game.soundDelay = !0),
-          (Game.changeDelay = Words.current.is_correct ? 3000 : 3000))
+          (Game.changeDelay = Words.current.is_correct ? 1500 : 1500))
         : ((Game.soundDelay = !1),
-          (Game.changeDelay = 3000));
+          (Game.changeDelay = 1500));
       $(window)
         .off("gameTik", Game.changeWordsDelay)
         .on("gameTik", Game.changeWordsDelay);
@@ -4915,6 +4915,7 @@ LoginForm.onReceive = function (a) {
             LoginForm.current.enable())
           : LoginForm.close(),
       (UserData = a.user),
+      Modernizr.localstorage && (localStorage.userData = JSON.stringify(a.user)),
       Home.c)
     )
       (UserMenu.set(),
@@ -6820,6 +6821,7 @@ UserMenu.prototype.onClick = function (a) {
 UserMenu.prototype.onReceive = function (a) {
   if (a.type == "signOut")
     (window.UserData && delete window.UserData,
+    Modernizr.localstorage && delete localStorage.userData,
       UserMenu.set(),
       UserMenu.dontwait(),
       Address.goHome());
@@ -6947,7 +6949,15 @@ UserPoints.prototype.updateDisplay = function () {
   this.icon && this.icon.layout();
 };
 UserPoints.prototype.reset = function (a) {
-  if (a) ((this.p = a), Home.c || this.updateDisplay());
+  if (a) {
+    this.p = a;
+    if (Modernizr.localstorage) {
+      try {
+        localStorage.userPoints = JSON.stringify(this.p);
+      } catch (e) {}
+    }
+    Home.c || this.updateDisplay();
+  }
 };
 UserPoints.prototype.getSum = function () {
   this.sum = 0;
