@@ -36,15 +36,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p 22 \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
-            'cd /var/www/babadum.xyz && \
-             cat > config.js << EOF
-var Config = {
-  deepl: {
-    apiKey: "${{ secrets.DEEPL_API_KEY }}",
-    useFreeApi: true,
-  },
-};
-EOF'
+            "echo 'var Config = { deepl: { apiKey: \"${{ secrets.DEEPL_API_KEY }}\", useFreeApi: true } };' > /var/www/babadum.xyz/config.js"
 
       - name: Restart Python server
         run: |
