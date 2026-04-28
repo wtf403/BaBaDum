@@ -2958,7 +2958,7 @@ Game = {
         );
       Game.currentGame == "oneImage" || Game.currentGame == "setLetters"
         ? ((Game.soundDelay = !0),
-          (Game.changeDelay = Words.current.is_correct ? 2000 : 350))
+          (Game.changeDelay = Words.current.is_correct ? 3000 : 3000))
         : ((Game.soundDelay = !1),
           (Game.changeDelay = Game.constChangeDaley + 250));
       $(window)
