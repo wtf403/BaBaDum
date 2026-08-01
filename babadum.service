@@ -1,0 +1,25 @@
+[Unit]
+Description=BaBaDum language-learning web app (server.py)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/babadum.xyz
+ExecStart=/usr/bin/python3 /var/www/babadum.xyz/server.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=babadum
+
+# Hardening (safe for a static-file + proxy server)
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

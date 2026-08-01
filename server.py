@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PORT = 8000
+PORT = 8001
 DEEPL_API_KEY = ""  # Set your DeepL API key here or in config
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
 
@@ -164,7 +164,17 @@ def main():
     """Start the server"""
     handler = HistoryAPIHTTPRequestHandler
 
-    with socketserver.TCPServer(("", PORT), handler) as httpd:
+    class ReusableThreadingServer(socketserver.ThreadingTCPServer):
+        allow_reuse_address = True
+        allow_reuse_port = True
+
+        def server_bind(self):
+            import socket
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            super().server_bind()
+
+    with ReusableThreadingServer(("", PORT), handler) as httpd:
         print(f"🚀 Ba Ba Dum server running at http://localhost:{PORT}/")
         print(f"📁 Serving files from: {os.getcwd()}")
         print(f"✨ HTML5 History API support enabled")
