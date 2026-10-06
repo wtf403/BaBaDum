@@ -1738,3 +1738,21 @@ em {
     height: 120px;
   }
 }
+
+#arabic-status {
+  position: fixed;
+  z-index: 10000;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 40px);
+  box-sizing: border-box;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #fff;
+  color: #283843;
+  font: 16px/1.5 Arial, sans-serif;
+  text-align: center;
+}
+#arabic-status button { margin-left: 12px; padding: 6px 12px; cursor: pointer; }

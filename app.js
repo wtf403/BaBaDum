@@ -1100,6 +1100,8 @@ function BumText(b, a, c) {
   this.id = "bt_" + BumText.count;
   if ((this.setId = a ? a.setId : null)) this.set = BumTextSet.all[this.setId];
   this.text = b;
+  this.arabic = /[\u0600-\u06ff]/.test(b);
+  if (this.arabic) { this.ctx.direction = "rtl"; this.ctx.textAlign = "left"; }
   this.wordLabel = a && a.wordLabel;
   this.centerH = a.centerH;
   this.duration = Math.round(a.duration ? a.duration : 400);
@@ -1119,10 +1121,10 @@ function BumText(b, a, c) {
   this.textW = 0;
   this.multiline = !1;
   this.letters = [];
-  this.ctx.font = this.font_size + "px/1 MrDumDumver07srHeavy";
+  this.ctx.font = this.font_size + (this.arabic ? "px Arial" : "px/1 MrDumDumver07srHeavy");
   this.middle_space_index = 0;
-  for (var e = b.length, f = 0, d = 0; d < b.length; d++) {
-    var f = b.charAt(d),
+  for (var e = b.length, f = 0, d = 0; d < (this.arabic ? 1 : b.length); d++) {
+    var f = this.arabic ? b : b.charAt(d),
       g = {
         l: f,
         width: Math.round(this.ctx.measureText(f).width),
@@ -1180,7 +1182,7 @@ function BumText(b, a, c) {
     );
 
   // Add Chinese HanziWriter or clickable word for audio
-  if (this.wordLabel && !a.canvas && !c) {
+  if (this.wordLabel && !a.canvas && !c && !(this.arabic && this.setId)) {
     var self = this;
 
     // Remove transform style from wordLabel
@@ -1243,7 +1245,7 @@ function BumText(b, a, c) {
       var sourceDeepL = "ZH";
       var targetDeepL = langMap[targetLang] || "EN";
 
-      if (sourceDeepL !== targetDeepL && Words.current) {
+      if (sourceDeepL !== targetDeepL && Words.current && !Words.current.arabic) {
         Words.current.translationText = null;
         DeepLTranscription.getTranscription(
           this.text,
@@ -1304,10 +1306,10 @@ function BumText(b, a, c) {
         tr: "TR",
       };
 
-      var sourceDeepL = langMap[sourceLang] || "EN";
+      var sourceDeepL = sourceLang == "ar" ? "AR" : langMap[sourceLang] || "EN";
       var targetDeepL = langMap[targetLang] || "EN";
 
-      if (sourceDeepL !== targetDeepL && Words.current) {
+      if (sourceDeepL !== targetDeepL && Words.current && !Words.current.arabic) {
         Words.current.translationText = null;
         DeepLTranscription.getTranscription(
           this.text,
@@ -1421,7 +1423,7 @@ BumText.prototype.adjustText = function (b) {
       this.multiline != this.was_multiline
     ) {
       this.textW = 0;
-      this.ctx.font = this.font_size + "px/1 MrDumDumver07srHeavy";
+      this.ctx.font = this.font_size + (this.arabic ? "px Arial" : "px/1 MrDumDumver07srHeavy");
       for (i = this.textW2 = 0; i < this.letters.length; i++)
         if (
           ((l = this.letters[i]),
@@ -1461,6 +1463,7 @@ BumText.prototype.adjustText = function (b) {
   }
 };
 BumText.prototype.draw = function () {
+  if (this.arabic) { this.ctx.direction = "rtl"; this.ctx.textAlign = "left"; }
   if (this.is_animating || this.setId) {
     this.setId || this.ctx.clearRect(0, 0, this.W, this.H);
     for (var b = 0; b < this.letters.length; b++) {
@@ -1530,7 +1533,7 @@ BumText.prototype.draw = function () {
           } else this.is_animating = !1;
         this.ctx.font =
           this.font_size * a.scale * a.mark_scale +
-          "px/1 MrDumDumver07srHeavyShadow";
+          (this.arabic ? "px Arial" : "px/1 MrDumDumver07srHeavyShadow");
         this.ctx.fillStyle = this.stroke;
         a.tmp_x = Math.round(
           a.x +
@@ -1544,7 +1547,12 @@ BumText.prototype.draw = function () {
             (1 - a.scale * a.mark_scale) * this.font_size * 0.4 +
             this.modY,
         );
-        this.ctx.fillText(a.l, a.tmp_x, a.tmp_y);
+        if (this.arabic) {
+          this.ctx.strokeStyle = this.stroke;
+          this.ctx.lineJoin = "round";
+          this.ctx.lineWidth = Math.max(1, this.font_size * a.scale * a.mark_scale * 0.07);
+          this.ctx.strokeText(a.l, a.tmp_x, a.tmp_y);
+        } else this.ctx.fillText(a.l, a.tmp_x, a.tmp_y);
       }
     }
     for (b = 0; b < this.letters.length; b++)
@@ -1554,7 +1562,7 @@ BumText.prototype.draw = function () {
       )
         ((this.ctx.font =
           this.font_size * a.scale * a.mark_scale +
-          "px/1 MrDumDumver07srHeavy"),
+          (this.arabic ? "px Arial" : "px/1 MrDumDumver07srHeavy")),
           (this.ctx.fillStyle = a.marked ? this.over : this.fill),
           this.ctx.fillText(a.l, a.tmp_x, a.tmp_y));
     if (this.cross_out) {
@@ -2781,6 +2789,21 @@ Game = {
     $(window).on("globalLayout", Game.setCanvasWH);
   },
   onChangeSettings: function (a, b) {
+    if (a == "lang" || a == "game") {
+      ArabicLearning.reset();
+      if (window.initationComplete && !Game.currentGame) {
+        if (a == "lang") {
+          Game.langID = b;
+          Game.langCode = Game.getLangCode(b);
+        } else Game.gameType = b;
+        try {
+          if (Modernizr.localstorage) localStorage[a == "lang" ? "langID" : "gameType"] = b;
+        } catch (e) {}
+        Words.arr.length = 0;
+        Words.get();
+        return;
+      }
+    }
     if (window.initationComplete)
       if (Game.currentGame) {
         if (a == "lang" || a == "game")
@@ -3202,7 +3225,7 @@ Game = {
         ((a = Words.getFirstWord()),
         ((a.lang_key != Game.langID &&
           Game.langID != Langs[Langs.length - 1].id) ||
-          (a.game != Game.gameType && Game.gameType != "shuffleGames")) &&
+          (a.game != Game.gameType && Game.gameType != "shuffleGames" && !a.arabic)) &&
           !(a.words[0].kana == 1 && Game.gameType == "kana"))
       )
         ((Words.arr.length = 0), Game.changeWords(), Words.get());
@@ -6950,6 +6973,8 @@ UserPoints.prototype.updateDisplay = function () {
 };
 UserPoints.prototype.reset = function (a) {
   if (a) {
+    // Upstream score updates cannot replace locally earned Arabic points.
+    if (this.p && this.p.l_100 !== undefined) a.l_100 = this.p.l_100;
     this.p = a;
     if (Modernizr.localstorage) {
       try {
@@ -9632,6 +9657,7 @@ Words = {
     return Words.current;
   },
   get: function () {
+    if (Game.langID == ArabicLearning.id) return ArabicLearning.get();
     Words.arr.length < Words.min_loaded &&
       Game.langID !== void 0 &&
       Game.gameType &&
@@ -9683,6 +9709,8 @@ Words = {
 AJAX = {
   id: 0,
   post: function (a) {
+    // Arabic progress is local; never submit translated rounds as English answers.
+    if (a && a.type == "anwser" && Words.current && Words.current.arabic) return;
     AJAX.id++;
     a = a || {};
     a.random = new Date().getTime();
@@ -9903,3 +9931,6 @@ Address = {
     }
   },
 };
+
+// Local Arabic language icon, available before the window load initializer.
+Assets.ar = '<svg id="icon_ar" class="icon" aria-label="Arabic" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle class="fill" fill="#7beeef" cx="50" cy="50" r="44"/><text class="stroke" fill="#283843" x="50" y="68" text-anchor="middle" font-size="58" font-family="Arial">ع</text></svg>';

@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 PORT = 8001
-DEEPL_API_KEY = ""  # Set your DeepL API key here or in config
+DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")  # Set your DeepL API key here or in config
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
 
 
@@ -53,11 +53,20 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             request_data = json.loads(post_data.decode("utf-8"))
 
             text = request_data.get("text", "")
+            translation_text = text
+            if isinstance(text, list):
+                if not text or len(text) > 50 or not all(isinstance(t, str) and t.strip() for t in text):
+                    self.send_error(400, "Invalid translation texts")
+                    return
+                text = " | ".join(text)
+            elif not isinstance(text, str):
+                self.send_error(400, "Invalid translation text")
+                return
             source_lang = request_data.get("source_lang", "ZH")
             target_lang = request_data.get("target_lang", "EN")
 
             # Get API key from request or server config
-            api_key = request_data.get("auth_key", DEEPL_API_KEY)
+            api_key = request_data.get("auth_key") or DEEPL_API_KEY
 
             if not api_key:
                 logger.error(
@@ -73,10 +82,10 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Make request to DeepL API with header-based authentication
             data = urllib.parse.urlencode(
                 {
-                    "text": text,
+                    "text": translation_text,
                     "source_lang": source_lang,
                     "target_lang": target_lang,
-                }
+                }, doseq=True
             ).encode()
 
             headers = {
@@ -86,7 +95,7 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             req = urllib.request.Request(DEEPL_API_URL, data=data, headers=headers)
 
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=20) as response:
                 deepl_response = response.read()
 
                 # Send successful response
