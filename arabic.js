@@ -100,6 +100,7 @@ var ArabicLearning = {
           });
           var answer = round.words.filter(function (w) { return w.word_key == round.id; })[0];
           round.translationText = answer.sourceWord;
+          round.translationLang = 'en';
           round.sound = {
             _loaded: true, fake: !window.speechSynthesis,
             play: function () {

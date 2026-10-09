@@ -52,6 +52,49 @@ var DeepLTranscription = {
   },
 };
 
+// Optional speech for the translation revealed after an answer.
+var TranslationAudio = {
+  enabled: false,
+  speech: null,
+  timer: null,
+  setEnabled: function (enabled) {
+    this.enabled = enabled;
+    try { localStorage.setItem("playTranslation", String(enabled)); } catch (e) {}
+    if (!enabled) this.cancel();
+  },
+  cancel: function () {
+    clearTimeout(this.timer);
+    if (this.speech && window.speechSynthesis) window.speechSynthesis.cancel();
+    this.speech = null;
+  },
+  play: function (round) {
+    if (!this.enabled || !Sounds.active || !round.translationText ||
+        !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+    this.cancel();
+    var speech = new SpeechSynthesisUtterance(round.translationText);
+    var lang = (round.translationLang || "en").toLowerCase();
+    speech.lang = lang;
+    var voices = window.speechSynthesis.getVoices();
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang.toLowerCase().split("-")[0] == lang.split("-")[0]) {
+        speech.voice = voices[i];
+        break;
+      }
+    }
+    speech.onend = speech.onerror = function () {
+      if (TranslationAudio.speech == speech) {
+        clearTimeout(TranslationAudio.timer);
+        TranslationAudio.speech = null;
+      }
+    };
+    this.speech = speech;
+    // Release the round even if a device never reports speech completion.
+    this.timer = setTimeout(function () { TranslationAudio.cancel(); }, 10000);
+    window.speechSynthesis.speak(speech);
+  },
+};
+try { TranslationAudio.enabled = localStorage.getItem("playTranslation") === "true"; } catch (e) {}
+
 // HanziWriter integration for Chinese characters
 var HanziWriterManager = {
   current: null,
@@ -1246,14 +1289,16 @@ function BumText(b, a, c) {
       var targetDeepL = langMap[targetLang] || "EN";
 
       if (sourceDeepL !== targetDeepL && Words.current && !Words.current.arabic) {
-        Words.current.translationText = null;
+        var translationRound = Words.current;
+        translationRound.translationText = null;
+        translationRound.translationLang = targetDeepL;
         DeepLTranscription.getTranscription(
           this.text,
           sourceDeepL,
           targetDeepL,
           function (transcription) {
-            if (transcription && Words.current) {
-              Words.current.translationText = transcription;
+            if (transcription && Words.current == translationRound) {
+              translationRound.translationText = transcription;
             }
           },
         );
@@ -1310,14 +1355,16 @@ function BumText(b, a, c) {
       var targetDeepL = langMap[targetLang] || "EN";
 
       if (sourceDeepL !== targetDeepL && Words.current && !Words.current.arabic) {
-        Words.current.translationText = null;
+        var translationRound = Words.current;
+        translationRound.translationText = null;
+        translationRound.translationLang = targetDeepL;
         DeepLTranscription.getTranscription(
           this.text,
           sourceDeepL,
           targetDeepL,
           function (transcription) {
-            if (transcription && Words.current) {
-              Words.current.translationText = transcription;
+            if (transcription && Words.current == translationRound) {
+              translationRound.translationText = transcription;
             }
           },
         );
@@ -2790,6 +2837,7 @@ Game = {
   },
   onChangeSettings: function (a, b) {
     if (a == "lang" || a == "game") {
+      TranslationAudio.cancel();
       ArabicLearning.reset();
       if (window.initationComplete && !Game.currentGame) {
         if (a == "lang") {
@@ -3019,6 +3067,7 @@ Game = {
       Words.current.sound.play();
   },
   showTranslationAfterAnswer: function (word) {
+    if (Words.current) TranslationAudio.play(Words.current);
     var isChinese = Game.langCode == "cn";
     var targetElement;
 
@@ -3198,6 +3247,7 @@ Game = {
       else break;
   },
   changeWordsDelay: function () {
+    if (TranslationAudio.speech) return;
     Game.changeDelay > 0
       ? (Game.changeDelay -= 1e3 / VAR.fps)
       : Game.soundDelay
@@ -3210,6 +3260,7 @@ Game = {
         : ($(window).off("gameTik", Game.changeWordsDelay), Game.changeWords());
   },
   changeWords: function (a) {
+    TranslationAudio.cancel();
     Game.hideUnderscore();
     BgCircle.removeAll();
     HanziWriterManager.clear();
@@ -6558,6 +6609,7 @@ UserMenu.btn_state = {
     { l: "progress" },
     { l: "credits" },
     { l: "lang" },
+    { l: "playTranslation" },
     { l: "signOut" },
   ],
   out: [
@@ -6566,6 +6618,7 @@ UserMenu.btn_state = {
     { l: "stats" },
     { l: "credits" },
     { l: "lang" },
+    { l: "playTranslation" },
     { l: "signIn" },
   ],
 };
@@ -6719,7 +6772,9 @@ UserMenu.prototype.set = function (a) {
       ) {
         this.btns.push(
           new BumButton(
-            this.btn_state[this.state][a].l,
+            this.btn_state[this.state][a].l == "playTranslation"
+              ? "Play translation: " + (TranslationAudio.enabled ? "On" : "Off")
+              : this.btn_state[this.state][a].l,
             this.onClick,
             this.color,
             null,
@@ -6730,6 +6785,11 @@ UserMenu.prototype.set = function (a) {
             !0,
           ),
         );
+        if (this.btn_state[this.state][a].l == "playTranslation")
+          this.btns[this.btns.length - 1].btn.attr({
+            name: "playTranslation_btn",
+            "aria-pressed": String(TranslationAudio.enabled),
+          });
         this.btn_state[this.state][a].l == "change2" &&
           this.btns[this.btns.length - 1].btn.attr("name", "change");
         this.btns[this.btns.length - 1].el
@@ -6816,7 +6876,10 @@ UserMenu.prototype.onClick = function (a) {
           category: "user",
           onReceiveLocation: "UserMenu",
         }));
-    else if (a == "lang") UserMenu.showLang(UserMenu._showLang);
+    else if (a == "playTranslation") {
+      TranslationAudio.setEnabled(!TranslationAudio.enabled);
+      UserMenu.set(!0);
+    } else if (a == "lang") UserMenu.showLang(UserMenu._showLang);
     else if (a == "home") Address.goHome();
     else if (a == "credits")
       (History.pushState(null, null, "/credits/"),
