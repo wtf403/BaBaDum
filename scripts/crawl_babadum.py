@@ -8,12 +8,15 @@ cover every word. Re-run to extend the same manifest and retry missing media.
 import argparse
 import http.client
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import shutil
 import signal
 import sys
+import tempfile
 import time
+import queue
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,34 +39,100 @@ class DiskSpaceError(RuntimeError):
 def atomic_write(path, content):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    with temporary.open("wb") as stream:
-        stream.write(content)
-    os.replace(temporary, path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            os.chmod(temporary, 0o644)
+            stream.write(content)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
 
 
 class HTTPClient:
-    def __init__(self, interval=1.0, timeout=20, retries=2):
-        if interval < 0.5:
-            raise ValueError("interval must be at least 0.5 seconds")
+    def __init__(self, interval=1.0, timeout=20, retries=2, shared_state=None):
+        minimum_interval = 0.125 if shared_state is not None else 0.5
+        if interval < minimum_interval:
+            raise ValueError("interval must be at least {} seconds".format(minimum_interval))
         self.interval = interval
         self.timeout = timeout
         self.retries = retries
         self.last_request = None
+        self.cooldown_until = 0
+        self.shared_state = shared_state
+        self._stats = {"requests": 0, "retries": 0, "transport_errors": 0,
+                       "rate_limited": 0, "status_counts": {}}
+
+    @property
+    def stats(self):
+        return dict(self._stats, status_counts=dict(self._stats["status_counts"]))
+
+    def _wait(self):
+        now = time.monotonic()
+        delay = max(0, self.cooldown_until - now)
+        if self.last_request is not None:
+            delay = max(delay, self.interval - (now - self.last_request))
+        if delay > 0:
+            time.sleep(delay)
+            now = time.monotonic()
+        shared = self.shared_state
+        if shared is not None:
+            while True:
+                with shared["lock"]:
+                    now = time.monotonic()
+                    delay = max(shared["next_request"].value,
+                                shared["cooldown_until"].value) - now
+                    if delay <= 0:
+                        shared["next_request"].value = now + self.interval
+                        shared["requests"].value += 1
+                        break
+                time.sleep(delay)
+        self.last_request = now
+
+    def _defer(self, seconds):
+        until = time.monotonic() + seconds
+        self.cooldown_until = max(self.cooldown_until, until)
+        if self.shared_state is not None:
+            with self.shared_state["lock"]:
+                value = self.shared_state["cooldown_until"]
+                value.value = max(value.value, until)
+
+    @staticmethod
+    def _retry_after(headers):
+        value = headers.get("Retry-After") if headers else None
+        if value is None:
+            return None
+        try:
+            seconds = float(value)
+            if seconds >= 0 and seconds < float("inf"):
+                return seconds
+        except (ValueError, TypeError):
+            pass
+        try:
+            from email.utils import parsedate_to_datetime
+            return max(0, parsedate_to_datetime(value).timestamp() - time.time())
+        except (ValueError, TypeError, OverflowError, AttributeError):
+            return None
+
+    def _status(self, code):
+        counts = self._stats["status_counts"]
+        counts[code] = counts.get(code, 0) + 1
 
     def request(self, url, data=None):
         for attempt in range(self.retries + 1):
-            if self.last_request is not None:
-                delay = self.interval - (time.monotonic() - self.last_request)
-                if delay > 0:
-                    time.sleep(delay)
-            self.last_request = time.monotonic()
+            if attempt:
+                self._stats["retries"] += 1
+            self._wait()
+            self._stats["requests"] += 1
             headers = {"User-Agent": "BaBaDumLocalLibrary/1.0"}
             if data is not None:
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
             request = urllib.request.Request(url, data=data, headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    self._status(getattr(response, "status", 200))
                     length = getattr(response, "headers", {}).get("Content-Length")
                     expected = int(length) if length is not None else None
                     if expected is not None and expected > MAX_RESPONSE:
@@ -75,10 +144,23 @@ class HTTPClient:
                     raise ValueError("upstream response exceeds size limit")
                 return result
             except urllib.error.HTTPError as error:
+                self._status(error.code)
+                retry_after = self._retry_after(error.headers)
                 error.close()
+                if error.code == 429:
+                    self._stats["rate_limited"] += 1
+                    if self.shared_state is not None:
+                        with self.shared_state["lock"]:
+                            self.shared_state["rate_limited"].value += 1
+                    self._defer(retry_after if retry_after is not None else min(30 * 2 ** attempt, 120))
+                elif error.code == 503 and retry_after is not None:
+                    self._defer(retry_after)
                 if error.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
                     raise
+                if error.code == 429 or (error.code == 503 and retry_after is not None):
+                    continue
             except (OSError, http.client.HTTPException) as error:
+                self._stats["transport_errors"] += 1
                 if attempt == self.retries:
                     # Normalize exhausted transport failures for the per-round
                     # error/checkpoint handling, without publishing partial data.
@@ -89,9 +171,10 @@ class HTTPClient:
 
 
 class Crawler:
-    def __init__(self, output_dir, client=None, metadata_only=False, progress=None, min_free_mb=512):
+    def __init__(self, output_dir, client=None, metadata_only=False, progress=None, min_free_mb=512,
+                 manifest_path=None):
         self.output_dir = Path(output_dir)
-        self.manifest_path = self.output_dir / "vocabulary.json"
+        self.manifest_path = Path(manifest_path) if manifest_path else self.output_dir / "vocabulary.json"
         self.client = client if client is not None else HTTPClient()
         self.metadata_only = metadata_only
         self.min_free_mb = min_free_mb
@@ -288,6 +371,194 @@ class Crawler:
                 finished.add(code)
 
 
+def private_path(output_dir, code):
+    return Path(output_dir) / ".workers" / (code + ".json")
+
+
+def merge_private(manifest, output_dir, code):
+    path = private_path(output_dir, code)
+    if not path.exists():
+        return
+    saved = json.loads(path.read_text("utf-8"))
+    language = saved.get("languages", {}).get(code)
+    if (saved.get("version") != 1 or not isinstance(language, dict) or
+            language.get("id") != LANGUAGES[code] or not isinstance(language.get("words"), dict)):
+        raise ValueError("malformed private language checkpoint: " + code)
+    current = manifest["languages"].setdefault(code, {"id": LANGUAGES[code], "words": {}})
+    current["words"].update(language["words"])
+
+
+class WorkerCrawler(Crawler):
+    """Own only assigned languages; the parent alone writes the public manifest."""
+
+    def __init__(self, output_dir, codes, **kwargs):
+        self.codes = codes
+        super().__init__(output_dir, manifest_path=private_path(output_dir, codes[0]), **kwargs)
+        for code in codes[1:]:
+            merge_private(self.manifest, output_dir, code)
+
+    def checkpoint(self):
+        for code in self.codes:
+            language = self.manifest["languages"].get(code)
+            if language is not None:
+                atomic_write(private_path(self.output_dir, code), json.dumps(
+                    {"version": 1, "languages": {code: language}},
+                    ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def worker_entry(index, codes, options, shared_state, messages, stop, client_factory=None):
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, interrupt)
+    signal.signal(signal.SIGTERM, interrupt)
+    job = None
+    client = None
+    status = 0
+    try:
+        factory = client_factory or HTTPClient
+        client = factory(interval=1.0 / options["request_rate"], timeout=options["timeout"],
+                         shared_state=shared_state)
+
+        def progress(event):
+            event["worker"] = index
+            event["http"] = getattr(client, "stats", {})
+            messages.put({"type": "progress", "event": event})
+            if stop.is_set():
+                raise KeyboardInterrupt
+
+        job = WorkerCrawler(options["output_dir"], codes, client=client,
+                            metadata_only=options["metadata_only"], progress=progress,
+                            min_free_mb=options["min_free_mb"])
+        job.run(codes, options["rounds_per_language"], options["max_no_new"],
+                options["target_per_language"], round_robin=options["round_robin"])
+    except KeyboardInterrupt:
+        status = 130
+    except Exception as error:
+        status = 1
+        messages.put({"type": "error", "worker": index,
+                      "error": type(error).__name__ + ": " + str(error)})
+    finally:
+        # Finish the final atomic checkpoint even if a service manager sends a
+        # second termination signal while this worker is shutting down.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if job is not None:
+            try:
+                job.checkpoint()
+            except Exception as error:
+                status = 1
+                messages.put({"type": "error", "worker": index,
+                              "error": "checkpoint: " + str(error)})
+        messages.put({"type": "done", "worker": index, "status": status,
+                      "http": getattr(client, "stats", {}) if client is not None else {}})
+    if status == 1:
+        raise SystemExit(1)
+
+
+def run_parallel(parent, languages, options, context=None, client_factory=None):
+    context = context or multiprocessing.get_context("spawn")
+    count = min(options["workers"], len(languages))
+    shared = {"lock": context.Lock(), "next_request": context.Value("d", 0.0),
+              "cooldown_until": context.Value("d", 0.0), "requests": context.Value("i", 0),
+              "rate_limited": context.Value("i", 0)}
+    messages = context.Queue()
+    stop = context.Event()
+    processes = []
+    failed = interrupted = False
+    # A private checkpoint may be newer than the public one after a crash.
+    for code in languages:
+        merge_private(parent.manifest, parent.output_dir, code)
+        language = parent.manifest["languages"].setdefault(code, {"id": LANGUAGES[code], "words": {}})
+        atomic_write(private_path(parent.output_dir, code), json.dumps(
+            {"version": 1, "languages": {code: language}},
+            ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    parent.checkpoint()
+
+    def stop_children():
+        if stop.is_set():
+            return
+        stop.set()
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+
+    try:
+        for index in range(count):
+            codes = languages[index::count]
+            process = context.Process(target=worker_entry, args=(
+                index, codes, options, shared, messages, stop, client_factory))
+            process.start()
+            processes.append(process)
+        parent.progress({"phase": "parallel_start", "workers": count,
+                         "pids": [process.pid for process in processes],
+                         "request_rate": options["request_rate"]})
+        while True:
+            try:
+                message = messages.get(timeout=0.2)
+            except queue.Empty:
+                if any(process.exitcode not in (None, 0) for process in processes) and not stop.is_set():
+                    failed = True
+                    stop_children()
+                if not any(process.is_alive() for process in processes):
+                    break
+                continue
+            if message["type"] == "progress":
+                event = message["event"]
+                merge_private(parent.manifest, parent.output_dir, event["language"])
+                parent.checkpoint()
+                event["total_words"] = sum(len(language["words"]) for language in parent.manifest["languages"].values())
+                event["http_global"] = {"requests": shared["requests"].value,
+                                        "rate_limited": shared["rate_limited"].value}
+                parent.progress(event)
+            elif message["type"] == "error":
+                parent.progress({"phase": "worker_error", "worker": message["worker"], "error": message["error"]})
+                failed = True
+                if not stop.is_set():
+                    stop_children()
+            elif message["type"] == "done" and message["status"] != 0 and not stop.is_set():
+                failed = True
+                stop_children()
+    except KeyboardInterrupt:
+        interrupted = True
+        stop_children()
+    finally:
+        cleanup_handlers = {sig: signal.signal(sig, signal.SIG_IGN)
+                            for sig in (signal.SIGINT, signal.SIGTERM)}
+        try:
+            if any(process.is_alive() for process in processes):
+                stop_children()
+            deadline = time.monotonic() + 25
+            # Keep draining while children flush their Queue feeder threads, so an
+            # interrupted parent cannot deadlock a child during its final checkpoint.
+            while any(process.is_alive() for process in processes) and time.monotonic() < deadline:
+                try:
+                    messages.get(timeout=0.1)
+                except queue.Empty:
+                    pass
+            for process in processes:
+                process.join(max(0, deadline - time.monotonic()))
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+                    failed = True
+                elif process.exitcode not in (0, None) and not interrupted:
+                    failed = True
+            for code in languages:
+                merge_private(parent.manifest, parent.output_dir, code)
+            parent.checkpoint()
+            parent.progress({"phase": "parallel_complete", "workers": count,
+                             "requests": shared["requests"].value,
+                             "rate_limited": shared["rate_limited"].value,
+                             "interrupted": interrupted, "failed": failed})
+            messages.close()
+            messages.join_thread()
+        finally:
+            for sig, handler in cleanup_handlers.items():
+                signal.signal(sig, handler)
+    return 130 if interrupted else 1 if failed else 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--languages", default="all", help="Comma-separated playable codes, or all")
@@ -298,6 +569,8 @@ def main(argv=None):
     parser.add_argument("--output-dir", default="data/library")
     parser.add_argument("--metadata-only", action="store_true")
     parser.add_argument("--round-robin", action="store_true", help="Rotate one round per language each cycle")
+    parser.add_argument("--workers", type=int, default=1, help="Parallel language workers, 1–21")
+    parser.add_argument("--request-rate", type=float, default=4.0, help="Global parallel request starts/second, 1–8")
     parser.add_argument("--interval", type=float, default=1.0, help="Global request interval, at least 0.5 seconds")
     parser.add_argument("--timeout", type=float, default=20)
     args = parser.parse_args(argv)
@@ -307,6 +580,8 @@ def main(argv=None):
     if (not 1 <= args.rounds_per_language <= 5000 or args.max_no_new < 1 or args.timeout <= 0 or
             args.interval < 0.5 or args.target_per_language < 1 or args.min_free_mb < 1):
         parser.error("rounds must be 1–5000; limits and timeout must be positive; interval must be at least 0.5")
+    if not 1 <= args.workers <= 21 or not 1 <= args.request_rate <= 8:
+        parser.error("workers must be 1–21 and parallel request rate must be 1–8")
     # Concurrent processes must not overwrite each other's manifest checkpoints.
     import fcntl
     output_dir = Path(args.output_dir)
@@ -327,6 +602,8 @@ def main(argv=None):
         previous_handlers = {signum: signal.signal(signum, interrupted)
                              for signum in (signal.SIGINT, signal.SIGTERM)}
         try:
+            if args.workers > 1:
+                return run_parallel(crawler, languages, vars(args))
             crawler.run(languages, args.rounds_per_language, args.max_no_new, args.target_per_language,
                         round_robin=args.round_robin)
         except DiskSpaceError:

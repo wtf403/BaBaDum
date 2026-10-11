@@ -71,5 +71,6 @@ temp/
 /data/library/.crawler.lock
 /data/library/*.pid
 /data/library/*.incoming.json
+/data/library/.workers/
 __pycache__/
 *.py[cod]

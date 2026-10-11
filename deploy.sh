@@ -11,6 +11,7 @@ rsync -az --exclude '__pycache__' --exclude '*.pyc' --exclude '*.bak' \
   --exclude 'deploy.sh' \
   --exclude '*.log' --exclude '*.tmp' \
   --exclude '/data/library/.crawler.lock' --exclude '/data/library/*.pid' \
+  --exclude '/data/library/.workers/' \
   ./ "$HOST:$REMOTE_DIR/"
 
 # Install/update the service file if it changed

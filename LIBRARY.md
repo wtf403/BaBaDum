@@ -34,8 +34,9 @@ recorded in `audio_unavailable` and does not count as an error or get requested
 again; transient errors remain retryable. One process
 may own an output directory at a time, enforced by `.crawler.lock`.
 
-The default global request interval is one second across both API calls and
-media downloads. `--interval` cannot be below 0.5 seconds. Requests time out after
+With one worker, the default request interval is one second across both API calls
+and media downloads; `--interval` cannot be below 0.5 seconds. Parallel workers
+instead share the aggregate `--request-rate` limit. Requests time out after
 20 seconds and transient failures receive at most two retries with backoff.
 `--min-free-mb 512` reserves disk space. The crawler stops with exit code 2 if
 free space drops below this threshold. Ctrl+C or SIGTERM checkpoints and exits
@@ -124,12 +125,27 @@ do not run a separate server collector while deploying local snapshots.
 Start a resumable background crawl from the repository root:
 
 ```sh
-nohup python3 scripts/crawl_babadum.py --languages all --round-robin --rounds-per-language 5000 --target-per-language 10000 --max-no-new 500 > data/library/crawl.log 2>&1 < /dev/null &
+nohup python3 scripts/crawl_babadum.py --languages all --workers 21 --request-rate 8 --rounds-per-language 5000 --target-per-language 10000 --max-no-new 500 > data/library/crawl.log 2>&1 < /dev/null &
 echo $! > data/library/crawl.pid
 tail -n 5 data/library/crawl.log
 ```
 
 The computer must stay awake and connected for the local crawl to progress.
+Parallel collection uses at most one process per language (21 workers). All
+workers share an aggregate request-start limit: the command above allows eight
+requests per second across API calls and audio downloads together. The supported
+maximum is eight requests per second. Private worker checkpoints in `.workers/`
+are ignored by Git; the coordinator merges them into the versioned manifest.
+HTTP 429 pauses all workers, honoring `Retry-After` or using increasing cooldowns.
+Progress reports include request and rate-limit counters. With one worker,
+`--round-robin` retains the sequential rotating mode.
+
+An initial bounded probe of 30 API requests at 1/2/4/8 concurrency saw no HTTP429,
+but one truncated response in the highest stage. A second probe using shared
+pacing completed 32/32 requests at eight starts per second with no HTTP429 or
+transport failures. Eight starts per second is the operating cap, not proof of
+an absent or permanently higher rate limit.
+
 Before committing a new snapshot, stop it and wait for its checkpoint:
 
 ```sh
