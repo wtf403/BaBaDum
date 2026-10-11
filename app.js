@@ -911,7 +911,9 @@ BumInfo.onReceive = function (a) {
         BumInfo.c.type == "stats"
           ? (a = BumInfo.parseStats(a))
           : BumInfo.c.type == "progress" && (a = BumInfo.parseProgress(a)),
-        (BumInfo.c.container.append(a.html)[0].style.opacity = 1),
+        BumInfo.c.container.append(a.html),
+        BumInfo.c.container.find('form[action*="paypal.com"], .paypal_btn').remove(),
+        (BumInfo.c.container[0].style.opacity = 1),
         (BumInfo.c.container[0].style[Modernizr.prefixed("transform")] = ""));
 };
 BumInfo.replaceSVGFlag = function () {
@@ -1373,6 +1375,7 @@ function BumText(b, a, c) {
   }
 
   this.setId || (BumText.arr[this.id] = this);
+  if (this.wordLabel && !this.setId) this.adjustCanvas();
   return this;
 }
 BumText.layout = function () {
@@ -1395,6 +1398,13 @@ BumText.prototype.adjustCanvas = function (b, a) {
       (this.is_animating = !0),
       this.setXY())
     : (b || a) && this.setXY();
+  // Wrapped labels use normal layout instead of the canvas positioning transform.
+  // Keep the high-resolution backing buffer, but display it at its logical size.
+  if (this.wordLabel && !this.setId && $(this.canvas).closest(".word-container").length) {
+    var scale = this.retinaScale ? 2 : 1;
+    this.canvas.style.width = this.canvas.width / scale + "px";
+    this.canvas.style.height = this.canvas.height / scale + "px";
+  }
 };
 BumText.prototype.setXY = function () {
   if (this.wordLabel || this.centerH) {
@@ -2748,6 +2758,7 @@ Game = {
   _middle: [],
   _currentImage: [],
   defaultLangID: 7,
+  defaultGameType: "chooseImage",
   currentTexts: [],
   _tmpTSet: [],
   delay: 150,
@@ -2778,11 +2789,14 @@ Game = {
         try {
           localStorage.gameType = Game.gameType;
         } catch (b) {}
-    } else
-      Game.gameType =
-        Modernizr.localstorage && localStorage.gameType
-          ? localStorage.gameType
-          : GameTypesOrder[0];
+    } else {
+      Game.gameType = Game.defaultGameType;
+      try {
+        if (Modernizr.localstorage &&
+            Object.prototype.hasOwnProperty.call(GameTypes, localStorage.gameType))
+          Game.gameType = localStorage.gameType;
+      } catch (b) {}
+    }
     Game.b_canvas = $(
       '<canvas width="' +
         VAR.wW +
@@ -3112,6 +3126,7 @@ Game = {
         $(".transcription-text").hide();
       }
       originalParent.append(tempText.canvas);
+      tempText.adjustCanvas();
       $(tempText.canvas).addClass("translation-overlay");
     }
   },
@@ -3529,7 +3544,7 @@ Game = {
   },
 };
 function Home(a) {
-  this.btns = "scores,stats,progress,donate,lang,credits,signIn,play".split(
+  this.btns = "scores,stats,progress,lang,credits,signIn,play".split(
     ",",
   );
   this.enable_banner = InterfaceData.get("banner_info");
