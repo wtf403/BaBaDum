@@ -150,3 +150,18 @@ test('old observed recording metadata never causes an upstream audio request', (
   audio.play({id: 10, translationText: 'el gato', translationLang: 'es'});
   assert.equal(spoken.length, 1);
 });
+
+test('round-supplied native translation works with an older browser catalog', () => {
+  const {audio, context, translations, spoken} = setup('true');
+  context.InterfaceData.data.lang_code = 'fr';
+  let options;
+  context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => {}; };
+  const round = {id: 10, lang: 'es', words: [{word_key: 10, word: 'el gato'}],
+    nativeTranslation: {lang: 'fr', word: 'le chat', audioUrls: ['/data/library/media/audio/fr/chat_123.ogg']}};
+  audio.prepare(round);
+  audio.play(round);
+  assert.equal(round.translationText, 'le chat');
+  assert.equal(options.src[0], '/data/library/media/audio/fr/chat_123.ogg');
+  assert.equal(translations.length, 0);
+  assert.equal(spoken.length, 0);
+});

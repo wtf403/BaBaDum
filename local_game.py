@@ -169,8 +169,13 @@ class LocalGameAPI:
             game = self.rng.choice(list(MODES))
         if game not in MODES:
             raise GameUnavailable("This game is not available in the local library.", "unsupported_game", 400)
-        chosen = self.rng.sample(list(unique.values()), 4)
-        answer = chosen[0]
+        target = str(params.get("translation_lang", "")).lower()
+        translations = {record["word_key"]: record for record in languages.get(target, ())}
+        paired = [record for record in unique.values() if record["word_key"] in translations]
+        require_translation = str(params.get("play_translation", "false")).lower() == "true"
+        answer = self.rng.choice(paired if require_translation and paired else list(unique.values()))
+        chosen = [answer] + self.rng.sample([record for record in unique.values()
+                                           if record["word_key"] != answer["word_key"]], 3)
         if game != "setLetters":
             self.rng.shuffle(chosen)
         words = []
@@ -185,9 +190,14 @@ class LocalGameAPI:
             while len(self.rounds) > 10000:
                 self.rounds.popitem(last=False)
         result = {"id": answer["word_key"], "audio": answer["audio_file"],
+                  "pairingMenuCode": target, "pairedAudioRequired": require_translation,
                   "audioUrls": answer["audioUrls"], "lang": code, "lang_key": LANGUAGES[code],
                   "color": answer["color_key"], "game": game, "words": words,
                   "real_m": MODES[game][1], "p_id": token, "local": True}
+        translation = translations.get(answer["word_key"])
+        if translation:
+            result["nativeTranslation"] = {"lang": target, "word": translation["word"],
+                                           "audioUrls": translation["audioUrls"]}
         if game == "setLetters":
             letters = list(answer["word"])
             self.rng.shuffle(letters)

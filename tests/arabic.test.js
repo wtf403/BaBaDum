@@ -8,7 +8,7 @@ function setup(game = 'chooseImage') {
     Game: {langID: 100, gameType: game}, Words: {arr: [], min_loaded: 1, ready() {}},
     BabadumRecordings: {remember() {}},
     BabadumLibrary: {loadImages(round, done) {done();}},
-    TranslationAudio: {prepare(round) {
+    TranslationAudio: {enabled: false, menuLanguage: () => "us", prepare(round) {
       round.translationText = round.words.find(w => w.word_key == round.id).sourceWord;
       round.translationLang = 'en';
     }},

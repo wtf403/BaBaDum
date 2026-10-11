@@ -23,6 +23,20 @@ class LocalGameTests(unittest.TestCase):
                             self.assertEqual(data['words'][0]['word_key'], data['id'])
                             self.assertCountEqual(data['shuffle'], data['words'][0]['word'])
 
+    def test_translation_audio_chooses_matched_pairs_in_both_directions(self):
+        api = LocalGameAPI(ROOT)
+        for source, target in (('fr', 'es'), ('es', 'fr')):
+            for mode in ('chooseImage', 'oneImage', 'chooseImageSound', 'setLetters', 'shuffleGames'):
+                for _ in range(20):
+                    status, response, _ = api.handle({'type': 'getWord', 'lang': source, 'game': mode,
+                                                     'translation_lang': target, 'play_translation': 'true'})
+                    self.assertEqual(status, 200)
+                    data = response['data']
+                    self.assertEqual(data['nativeTranslation']['lang'], target)
+                    self.assertTrue(data['nativeTranslation']['audioUrls'])
+                    self.assertTrue(all((ROOT / path[1:]).is_file() for path in data['nativeTranslation']['audioUrls']))
+                    self.assertTrue(data['pairedAudioRequired'])
+
     def test_interface_fallback_preserves_translation_language(self):
         api = LocalGameAPI(ROOT)
         for code in ('es', 'fr', 'ar', 'jp'):

@@ -79,7 +79,8 @@ var TranslationAudio = {
     round.translationLang = this.languageTag(menu);
     round.translationText = null;
     if (!round.arabic && source == target) return;
-    var recording = BabadumLibrary.get(menu, round.id) || BabadumRecordings.get(menu, round.id);
+    var recording = round.nativeTranslation && round.nativeTranslation.lang == menu ? round.nativeTranslation :
+      BabadumLibrary.get(menu, round.id) || BabadumRecordings.get(menu, round.id);
     if (recording) { round.translationText = recording.word; return; }
     if (source == target) { round.translationText = answer.sourceWord || answer.word; return; }
     DeepLTranscription.getTranscription(answer.sourceWord || answer.word, source, target, function (text) {
@@ -90,6 +91,10 @@ var TranslationAudio = {
     this.enabled = enabled;
     try { localStorage.setItem("playTranslation", String(enabled)); } catch (e) {}
     if (!enabled) this.cancel();
+    if (typeof Words != "undefined" && typeof Game != "undefined" && Game.langID !== void 0) {
+      Words.arr = [];
+      Words.get();
+    }
   },
   cancel: function () {
     clearTimeout(this.timer);
@@ -105,7 +110,8 @@ var TranslationAudio = {
     if (!this.enabled || !Sounds.active || !round.translationText) return;
     if (round.translationMenuCode && round.translationMenuCode != this.menuLanguage()) return;
     this.cancel();
-    var entry = BabadumLibrary.get(this.menuLanguage(), round.id) ||
+    var entry = round.nativeTranslation && round.nativeTranslation.lang == this.menuLanguage() ? round.nativeTranslation :
+      BabadumLibrary.get(this.menuLanguage(), round.id) ||
       BabadumRecordings.get(this.menuLanguage(), round.id) ||
       BabadumRecordings.getByText(this.menuLanguage(), round.translationText);
     if (!entry || !(entry.audioUrls && entry.audioUrls.length || entry.audioUrl) || typeof Howl == "undefined") { this.speak(round); return; }
@@ -6918,6 +6924,7 @@ UserMenu.prototype.onReceive = function (a) {
         TranslationAudio.cancel(),
         Words.current && TranslationAudio.prepare(Words.current),
         Words.arr.forEach(function (round) { TranslationAudio.prepare(round); }),
+        TranslationAudio.enabled && (Words.arr = [], Words.get()),
         UserMenu.setLangBtns(),
         UserMenu.set(!0),
         Icons.changeLang(),
@@ -9735,6 +9742,8 @@ Words = {
         onReceiveLocation: "Words",
         lang: Game.langID,
         game: Game.gameType,
+        translation_lang: TranslationAudio.menuLanguage(),
+        play_translation: String(TranslationAudio.enabled),
       });
   },
   ready: function () {
@@ -9766,6 +9775,11 @@ Words = {
   },
   onReceive: function (a) {
     if (a.type == "getWord") {
+      if (TranslationAudio.enabled && a.data.pairingMenuCode !== void 0 &&
+          (a.data.pairingMenuCode != TranslationAudio.menuLanguage() || !a.data.pairedAudioRequired)) {
+        Words.get();
+        return;
+      }
       if (
         ((a.data.words[0].lang_key == Game.langID ||
           Langs[Langs.length - 1].id == Game.langID) &&

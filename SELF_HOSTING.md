@@ -8,7 +8,10 @@ existing DeepL proxy and uses browser speech where native audio is unavailable.
 
 Native recordings, pictures, fonts, sound effects, JavaScript libraries, and
 Chinese stroke data are served locally. Translation audio prefers downloaded
-recordings and falls back to browser speech; observed original-site filenames
+recordings. With translation audio enabled, round answers are chosen from the
+recorded intersection of the game and menu languages where it exists. The round
+includes its translation recording to avoid stale browser catalogs. If there is
+no recorded intersection, audio falls back to browser speech; observed original-site filenames
 never trigger remote downloads during gameplay.
 
 Original-site accounts and shared leaderboards are not mirrored. Points remain

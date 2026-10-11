@@ -69,7 +69,8 @@ var ArabicLearning = {
     if (!Words.arr.length && !Words.current) this.notice('Preparing Arabic words…');
     $.ajax({
       url: '/api/game', method: 'POST', dataType: 'json', timeout: 20000,
-      data: {type: 'getWord', category: 'words', onReceiveLocation: 'Words', lang: 1, game: game, random: Date.now()},
+      data: {type: 'getWord', category: 'words', onReceiveLocation: 'Words', lang: 1, game: game, random: Date.now(),
+        translation_lang: TranslationAudio.menuLanguage(), play_translation: String(TranslationAudio.enabled)},
       success: function (response) {
         if (!current()) return;
         var round = response && response.data;
