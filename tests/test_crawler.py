@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import io
 import json
 import signal
@@ -67,6 +68,37 @@ class CrawlerTest(unittest.TestCase):
             self.assertEqual(len(events), 2)
             self.assertEqual(len(client.requests), 2)
             self.assertTrue(all(data is not None for _, data in client.requests))
+
+    def test_round_robin_visits_every_language_before_second_spanish_round(self):
+        with tempfile.TemporaryDirectory() as folder:
+            events = []
+            job = crawler.Crawler(folder, FakeClient(), metadata_only=True, progress=events.append)
+            job.get_round = lambda code: []
+            languages = list(crawler.LANGUAGES)
+            job.run(languages, 2, round_robin=True)
+            self.assertEqual([event["language"] for event in events], languages + languages)
+            self.assertEqual([event["round"] for event in events], [1] * 21 + [2] * 21)
+
+    def test_round_robin_target_and_plateau_limits_are_per_language(self):
+        with tempfile.TemporaryDirectory() as folder:
+            events = []
+            calls = {code: 0 for code in ("es", "fr", "de", "us")}
+            job = crawler.Crawler(folder, FakeClient(), metadata_only=True, progress=events.append)
+
+            def get_round(code):
+                calls[code] += 1
+                concepts = [] if code == "es" else (["1", "2", "3"] if code == "fr" else
+                            ["1"] if code == "de" else [str(calls[code])])
+                words = [sample(concept) for concept in concepts]
+                for word in words:
+                    word["lang_key"] = str(crawler.LANGUAGES[code])
+                return words
+
+            job.get_round = get_round
+            job.run(list(calls), 4, max_no_new=1, target_per_language=3, round_robin=True)
+            self.assertEqual(calls, {"es": 1, "fr": 1, "de": 2, "us": 3})
+            self.assertEqual([event["language"] for event in events[:4]], list(calls))
+            self.assertEqual([event["round"] for event in events if event["language"] == "us"], [1, 2, 3])
 
     def test_metadata_only_can_resume_to_download_missing_media(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -181,10 +213,50 @@ class CrawlerTest(unittest.TestCase):
             client.request("https://babadum.com/audio/es/volar_3141.ogg")
         self.assertAlmostEqual(sleep.call_args.args[0], 0.8)
 
+    def test_truncated_http_retries_are_bounded_and_next_round_continues(self):
+        class TruncatedResponse(io.BytesIO):
+            def read(self, size=-1):
+                raise http.client.IncompleteRead(b'{"type":"getWord"')
+
+        good = json.dumps({"type": "getWord", "data": {"words": [sample()]}}).encode()
+        with tempfile.TemporaryDirectory() as folder:
+            events = []
+            job = crawler.Crawler(folder, crawler.HTTPClient(retries=2),
+                                  metadata_only=True, progress=events.append)
+            with patch.object(crawler.time, "sleep"), \
+                    patch.object(crawler.urllib.request, "urlopen", side_effect=[
+                        TruncatedResponse(), TruncatedResponse(), TruncatedResponse(), io.BytesIO(good)
+                    ]) as upstream:
+                job.run(["es"], 2)
+            self.assertEqual(upstream.call_count, 4)
+            self.assertEqual(events[0]["errors"], 1)
+            self.assertEqual(events[0]["words"], 0)
+            self.assertEqual(events[1]["new_words"], 1)
+            saved = json.loads((Path(folder) / "vocabulary.json").read_text())
+            self.assertEqual(list(saved["languages"]["es"]["words"]), ["1253"])
+
+    def test_short_content_length_response_retries_without_returning_partial_audio(self):
+        short = io.BytesIO(b"OggSshort")
+        short.headers = {"Content-Length": "20"}
+        good = io.BytesIO(b"OggScomplete")
+        with patch.object(crawler.time, "sleep"), \
+                patch.object(crawler.urllib.request, "urlopen", side_effect=[short, good]) as upstream:
+            result = crawler.HTTPClient().request("https://babadum.com/audio/es/volar_3141.ogg")
+        self.assertEqual(upstream.call_count, 2)
+        self.assertEqual(result, b"OggScomplete")
+
+    def test_http_retry_does_not_swallow_keyboard_interrupt(self):
+        with patch.object(crawler.time, "sleep") as sleep, \
+                patch.object(crawler.urllib.request, "urlopen", side_effect=KeyboardInterrupt) as upstream:
+            with self.assertRaises(KeyboardInterrupt):
+                crawler.HTTPClient().request("https://babadum.com/get.php", b"type=getWord")
+        upstream.assert_called_once()
+        sleep.assert_not_called()
+
     def test_service_stop_checkpoints_and_restores_signal_handlers(self):
         with tempfile.TemporaryDirectory() as folder:
             job = Mock()
-            job.run.side_effect = lambda *args: signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+            job.run.side_effect = lambda *args, **kwargs: signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
             previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
             with patch.object(crawler, "Crawler", return_value=job):
                 status = crawler.main(["--output-dir", folder, "--languages", "es", "--rounds-per-language", "1"])

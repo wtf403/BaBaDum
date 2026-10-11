@@ -6,6 +6,7 @@ cover every word. Re-run to extend the same manifest and retry missing media.
 """
 
 import argparse
+import http.client
 import json
 import os
 from pathlib import Path
@@ -63,7 +64,13 @@ class HTTPClient:
             request = urllib.request.Request(url, data=data, headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    length = getattr(response, "headers", {}).get("Content-Length")
+                    expected = int(length) if length is not None else None
+                    if expected is not None and expected > MAX_RESPONSE:
+                        raise ValueError("upstream response exceeds size limit")
                     result = response.read(MAX_RESPONSE + 1)
+                    if expected is not None and len(result) < expected:
+                        raise http.client.IncompleteRead(result, expected - len(result))
                 if len(result) > MAX_RESPONSE:
                     raise ValueError("upstream response exceeds size limit")
                 return result
@@ -71,9 +78,13 @@ class HTTPClient:
                 error.close()
                 if error.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
                     raise
-            except (urllib.error.URLError, TimeoutError):
+            except (OSError, http.client.HTTPException) as error:
                 if attempt == self.retries:
-                    raise
+                    # Normalize exhausted transport failures for the per-round
+                    # error/checkpoint handling, without publishing partial data.
+                    if isinstance(error, urllib.error.URLError):
+                        raise
+                    raise urllib.error.URLError(error) from error
             time.sleep(min(2 ** (attempt + 1), 8))
 
 
@@ -217,9 +228,27 @@ class Crawler:
                     errors += 1
         return new_words, audio_saved, errors
 
-    def run(self, languages, rounds_per_language=100, max_no_new=100, target_per_language=1500):
-        for code in languages:
-            if not self.metadata_only:
+    def run(self, languages, rounds_per_language=100, max_no_new=100, target_per_language=1500,
+            round_robin=False):
+        def schedule():
+            if round_robin:
+                for number in range(1, rounds_per_language + 1):
+                    for language in languages:
+                        yield language, number
+            else:
+                for language in languages:
+                    for number in range(1, rounds_per_language + 1):
+                        yield language, number
+
+        backfilled = set()
+        finished = set()
+        no_new = {code: 0 for code in languages}
+        for code, round_number in schedule():
+            if len(finished) == len(languages):
+                break
+            if code in finished:
+                continue
+            if code not in backfilled and not self.metadata_only:
                 words = self.manifest["languages"].get(code, {}).get("words", {})
                 for entry in words.values():
                     stem = entry.get("audio_file")
@@ -238,25 +267,25 @@ class Crawler:
                     total, audio_count = self.coverage(code)
                     self.progress({"phase": "backfill", "language": code, "words": total,
                                    "audio": audio_count, "audio_saved": audio_saved, "errors": errors})
-            no_new = 0
-            for round_number in range(1, rounds_per_language + 1):
-                total, audio_count = self.coverage(code)
-                if (total if self.metadata_only else audio_count) >= target_per_language:
-                    break
-                self.ensure_space()
-                try:
-                    new_words, audio_saved, errors = self.ingest(code, self.get_round(code))
-                except (urllib.error.URLError, TimeoutError, ValueError, KeyError):
-                    new_words, audio_saved, errors = 0, 0, 1
-                self.checkpoint()
-                total, audio_count = self.coverage(code)
-                total_words = sum(len(language["words"]) for language in self.manifest["languages"].values())
-                self.progress({"language": code, "round": round_number, "words": total,
-                               "audio": audio_count, "target": target_per_language, "total_words": total_words,
-                               "new_words": new_words, "audio_saved": audio_saved, "errors": errors})
-                no_new = no_new + 1 if new_words == 0 else 0
-                if no_new >= max_no_new:
-                    break
+            backfilled.add(code)
+            total, audio_count = self.coverage(code)
+            if (total if self.metadata_only else audio_count) >= target_per_language:
+                finished.add(code)
+                continue
+            self.ensure_space()
+            try:
+                new_words, audio_saved, errors = self.ingest(code, self.get_round(code))
+            except (urllib.error.URLError, TimeoutError, ValueError, KeyError):
+                new_words, audio_saved, errors = 0, 0, 1
+            self.checkpoint()
+            total, audio_count = self.coverage(code)
+            total_words = sum(len(language["words"]) for language in self.manifest["languages"].values())
+            self.progress({"language": code, "round": round_number, "words": total,
+                           "audio": audio_count, "target": target_per_language, "total_words": total_words,
+                           "new_words": new_words, "audio_saved": audio_saved, "errors": errors})
+            no_new[code] = no_new[code] + 1 if new_words == 0 else 0
+            if no_new[code] >= max_no_new or round_number == rounds_per_language:
+                finished.add(code)
 
 
 def main(argv=None):
@@ -268,6 +297,7 @@ def main(argv=None):
     parser.add_argument("--min-free-mb", type=int, default=512)
     parser.add_argument("--output-dir", default="data/library")
     parser.add_argument("--metadata-only", action="store_true")
+    parser.add_argument("--round-robin", action="store_true", help="Rotate one round per language each cycle")
     parser.add_argument("--interval", type=float, default=1.0, help="Global request interval, at least 0.5 seconds")
     parser.add_argument("--timeout", type=float, default=20)
     args = parser.parse_args(argv)
@@ -297,7 +327,8 @@ def main(argv=None):
         previous_handlers = {signum: signal.signal(signum, interrupted)
                              for signum in (signal.SIGINT, signal.SIGTERM)}
         try:
-            crawler.run(languages, args.rounds_per_language, args.max_no_new, args.target_per_language)
+            crawler.run(languages, args.rounds_per_language, args.max_no_new, args.target_per_language,
+                        round_robin=args.round_robin)
         except DiskSpaceError:
             crawler.checkpoint()
             crawler.progress({"stopped": "low_disk_space", "min_free_mb": args.min_free_mb})
