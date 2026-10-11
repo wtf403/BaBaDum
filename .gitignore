@@ -74,3 +74,6 @@ temp/
 /data/library/.workers/
 __pycache__/
 *.py[cod]
+
+# Pinned browser libraries are intentionally vendored
+!/assets/vendor/*.min.js

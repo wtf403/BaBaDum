@@ -141,7 +141,7 @@ class LocalGameAPI:
         if value is None:
             value = self.load_json(self.snapshots / "interfaces/us.json") or {}
         interface = copy.deepcopy(value.get("interface", value))
-        interface.setdefault("lang_code", code)
+        interface["lang_code"] = code
         return interface
 
     def get_word(self, params):
