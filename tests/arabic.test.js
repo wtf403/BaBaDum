@@ -6,6 +6,12 @@ function setup(game = 'chooseImage') {
   const requests = [], notices = [], storage = {};
   const context = {console, Date, JSON, Math, Array, Object,
     Game: {langID: 100, gameType: game}, Words: {arr: [], min_loaded: 1, ready() {}},
+    BabadumRecordings: {remember() {}},
+    BabadumLibrary: {loadImages(round, done) {done();}},
+    TranslationAudio: {prepare(round) {
+      round.translationText = round.words.find(w => w.word_key == round.id).sourceWord;
+      round.translationLang = 'en';
+    }},
     Sounds: {onWordEnd() {}}, DeepLTranscription: {getApiKey: () => 'test'},
     localStorage: {getItem: k => storage[k], setItem: (k,v) => storage[k]=v},
     window: {}, $: () => ({remove() {}})};

@@ -66,3 +66,10 @@ deploy_key*
 tmp/
 temp/
 *.tmp
+
+# Crawler runtime files; vocabulary and media are versioned
+/data/library/.crawler.lock
+/data/library/*.pid
+/data/library/*.incoming.json
+__pycache__/
+*.py[cod]

@@ -75,3 +75,89 @@ until a matching word appears is inefficient and should not happen per answer.
 - The local copy of the original client uses `Words.get`, `Words.loadAudio`, and
   `AJAX.post` in `app.js`; it constructs audio URLs using the server-provided
   `data.lang` and `data.audio`, without deriving a translation filename.
+
+## Follow-up investigation
+
+The live first-party JavaScript bundle at
+`https://babadum.com/js/b7ea763.js` was inspected directly, rather than relying
+only on the local modified copy. Its gameplay fetch path is the same `getWord`
+request described above. It does not publish a separate translation/audio lookup
+request, a vocabulary JSON asset, or a word selector used by the client.
+
+Other modest discovery checks did not produce a complete recording index:
+
+- A normal public `category=utils&type=getStats` request returns easiest/hardest
+  words by language, with fields `lang_code`, `word`, `img`, `OK`, and `KO`.
+  It does not include the localized record ID or `audio_file`. Its image endpoint
+  (`getStatsImg`) is used only to retrieve SVG artwork.
+- `https://babadum.com/audio/fr/` returns a “You shall not pass!” page, so the
+  audio directory does not offer a usable public filename listing.
+- `https://babadum.com/robots.txt` contains no sitemap or vocabulary discovery
+  links. `https://babadum.com/sitemap.xml` serves the regular homepage rather
+  than a vocabulary index.
+- The published `https://babadum.com/ChangeLog.php` describes translations stored
+  in MySQL and the addition of language support, but publishes no dictionary or
+  deterministic audio API.
+- Search queries restricted to the first-party domain did not find indexed
+  metadata for `brouette_8346`.
+
+The supported public client path therefore still cannot select the exact current
+concept in a second language. A deterministic lookup would require a separate
+trusted vocabulary/recording mapping or a newly established first-party lookup
+interface. No random-round scanning, large download, or undocumented database
+access was used. All 12 localized records in the three retained sample responses
+have `audio_file`, and all suffixes equal their respective localized `id`.
+
+### Progress and alternate-mode checks
+
+A further investigation checked the actual first-party progress request names
+used in the client, with no authenticated account:
+
+- `category=utils&type=getProgress&onReceiveLocation=BumInfo` returned
+  `{"type":"getProgress","onReceiveLocation":"BumInfo","progress_access_limit":1}`.
+- `category=utils&type=getProgressdemo&onReceiveLocation=BumInfo` returned only
+  `type`, `onReceiveLocation`, and cached `html`. The approximately 592 KB HTML
+  consists largely of inline SVG flags/icons and aggregate points/learned-word
+  percentages. It contains no audio metadata, no `word_key`, and no resource or
+  lookup links. It is not a vocabulary export.
+- The supported alternate `oneImage` game was tested using a known Spanish
+  concept and full known recording metadata:
+  `lang=4&game=oneImage&id=1253&word_key=1253&word_id=3141&word=volar&audio=volar_3141&a=3141`.
+  It returned concept `1375`, `el radio`, `radio_5158` rather than `volar`.
+  Thus the tested selectors are ignored in that mode too. Its four response
+  choices still each contain localized `audio_file` metadata; changing game
+  mode does not provide a second-language lookup.
+
+No source-discovered supported endpoint provides the complete dictionary or
+selects a localized recording for an arbitrary known concept. The tested paths
+can supply metadata for whichever random round the server chooses. This is a
+bounded investigation of supported public client behavior, not proof about every
+undocumented server interface.
+
+### Existing exporter repository
+
+The public third-party repository
+`https://github.com/wrongplanetrightgame/babadum2anki` was also checked as a
+possible source of an already generated mapping. Its current `data/` directory
+contains only `.gitignore`, it publishes no GitHub releases, and it has only the
+`master` branch. Limited history inspection found one commit touching `data/`
+(“Data folder”), rather than a removed vocabulary export. The sole listed public
+fork, `rpaaron/babadum2anki`, likewise contains only `data/.gitignore`. No usable
+dataset was recovered from these inventories. This observation concerns that
+repository's published artifacts; its exporter source is a separate lead.
+
+### Spanish deck availability
+
+The exporter README's Spanish deck link,
+`https://ankiweb.net/shared/info/222240580`, was investigated for an existing
+Spanish word-to-recording index. The current AnkiWeb page is a JavaScript shell.
+Its public frontend requests
+`https://ankiweb.net/svc/shared/item-info?sharedId=222240580`; the response is
+protobuf bytes `10 01`, which its published schema decodes as `missing: true`.
+Thus the deck currently provides neither a download key nor size/package metadata.
+No deck package or audio files were downloaded.
+
+The public AnkiWeb shared-deck search endpoint returned empty responses for both
+`search=babadum` and `search=Ba%20Ba%20Dum`. A broader `Spanish 1500` search found
+an unrelated contextual vocabulary deck rather than the game's recording index.
+No recoverable Spanish recording map was found through this current catalog.

@@ -1,0 +1,2 @@
+# Preserve downloaded media bytes and keep generated artwork out of text diffs.
+data/library/media/** binary

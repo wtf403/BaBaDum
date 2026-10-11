@@ -2,21 +2,27 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
-const source = fs.readFileSync('app.js', 'utf8').split('// Optional speech')[1].split('// HanziWriter integration')[0];
+const source = fs.readFileSync('app.js', 'utf8').split('// Optional audio')[1].split('// HanziWriter integration')[0];
 function setup(saved, supported = true) {
   const spoken = [], storage = {}, timers = new Map();
   let canceled = 0;
   const speechSynthesis = {getVoices: () => [{lang: 'en-US'}, {lang: 'ru-RU'}],
     speak: speech => spoken.push(speech), cancel: () => canceled++};
-  const context = {Sounds: {active: true}, localStorage: {
+  const translations = [];
+  const context = {Sounds: {active: true},
+    InterfaceData: {data: {lang_code: 'us'}},
+    BabadumLibrary: {get: () => null},
+    BabadumRecordings: {get: () => null, getByText: () => null, normalizeLanguage: code => code},
+    DeepLTranscription: {getTranscription: (...args) => translations.push(args)},
+    localStorage: {
     getItem: () => saved, setItem: (key, value) => storage[key] = value},
     window: supported ? {speechSynthesis, SpeechSynthesisUtterance: function () {}} : {},
     SpeechSynthesisUtterance: function (text) { this.text = text; },
     setTimeout: callback => { timers.set(timers.size + 1, callback); return timers.size; },
     clearTimeout: id => timers.delete(id)};
   vm.createContext(context);
-  vm.runInContext('// Optional speech' + source, context);
-  return {audio: context.TranslationAudio, spoken, storage, timers, context, canceled: () => canceled};
+  vm.runInContext('// Optional audio' + source, context);
+  return {audio: context.TranslationAudio, spoken, storage, timers, context, translations, canceled: () => canceled};
 }
 test('translation audio defaults off and persists explicit opt-in', () => {
   const {audio, spoken, storage} = setup();
@@ -58,4 +64,80 @@ test('speech errors and missing completion callbacks release the round', () => {
   audio.play({translationText: 'dog'});
   [...timers.values()][0]();
   assert.equal(audio.speech, null);
+});
+
+test('Arabic translation is prepared in Spanish when the menu is Spanish', () => {
+  const {audio, context, translations} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  const round = {id: 10, arabic: true, words: [{word_key: 10, word: 'قطة', sourceWord: 'cat'}]};
+  audio.prepare(round);
+  assert.equal(round.translationLang, 'es');
+  assert.equal(round.translationText, null);
+  assert.deepEqual(translations[0].slice(0, 3), ['cat', 'EN', 'ES']);
+  translations[0][3]('el gato');
+  assert.equal(round.translationText, 'el gato');
+});
+test('menu-language changes discard the previous translation response', () => {
+  const {audio, context, translations} = setup();
+  const round = {id: 10, lang: 'fr', words: [{word_key: 10, word: 'le chat'}]};
+  context.InterfaceData.data.lang_code = 'es';
+  audio.prepare(round);
+  context.InterfaceData.data.lang_code = 'ru';
+  audio.prepare(round);
+  translations[0][3]('el gato');
+  assert.equal(round.translationText, null);
+  translations[1][3]('кот');
+  assert.equal(round.translationText, 'кот');
+  assert.equal(round.translationLang, 'ru');
+});
+test('original Spanish recording is preferred and uses its actual filename', () => {
+  const {audio, context, spoken} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  context.BabadumRecordings.get = (lang, id) => lang === 'es' && id === 10
+    ? {word: 'el gato', audio_file: 'gato_3210'} : null;
+  const played = [];
+  context.Howl = function (options) {
+    this.play = () => played.push(options);
+    this.unload = () => {};
+  };
+  const round = {id: 10, lang: 'fr', words: [{word_key: 10, word: 'le chat'}]};
+  audio.prepare(round);
+  assert.equal(round.translationText, 'el gato');
+  audio.play(round);
+  assert.equal(played.length, 1);
+  assert.equal(played[0].src[0], 'https://babadum.com/audio/es/gato_3210.ogg');
+  assert.equal(spoken.length, 0);
+  played[0].onend();
+  assert.equal(audio.recording, null);
+});
+test('failed original recording falls back to Spanish speech and disabling stops playback', () => {
+  const {audio, context, spoken} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  context.BabadumRecordings.get = () => ({word:'el gato', audio_file:'gato_3210'});
+  let options, unloaded = 0;
+  context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => unloaded++; };
+  const round = {id: 10, translationText:'el gato', translationLang:'es'};
+  audio.play(round);
+  options.onloaderror();
+  assert.equal(unloaded, 1);
+  assert.equal(spoken[0].lang, 'es');
+  spoken[0].onend();
+  audio.play(round);
+  audio.setEnabled(false);
+  assert.equal(unloaded, 2);
+  assert.equal(audio.recording, null);
+});
+
+test('downloaded Spanish recording is served from the local library', () => {
+  const {audio, context} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  context.BabadumLibrary.get = () => ({word: 'el gato', audio_file: 'gato_3210',
+    audioUrl: '/data/library/media/audio/es/gato_3210.ogg',
+    audioUrls: ['/data/library/media/audio/es/gato_3210.ogg', '/data/library/media/audio/es/gato_3210.m4a']});
+  let options;
+  context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => {}; };
+  audio.play({id:10, translationText:'el gato', translationLang:'es'});
+  assert.equal(options.src.length, 2);
+  assert.equal(options.src[0], '/data/library/media/audio/es/gato_3210.ogg');
+  assert.equal(options.src[1], '/data/library/media/audio/es/gato_3210.m4a');
 });

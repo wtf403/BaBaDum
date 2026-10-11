@@ -74,6 +74,12 @@ var ArabicLearning = {
         if (!current()) return;
         var round = response && response.data;
         if (!round || !Array.isArray(round.words) || !round.words.length || !round.words.some(function (w) { return w.word_key == round.id; })) return fail();
+        BabadumRecordings.remember(round);
+        round.localImagesReady = false;
+        BabadumLibrary.loadImages(round, function () {
+          round.localImagesReady = true;
+          Words.ready();
+        });
         self.translate(round.words.map(function (w) { return w.word; }), function (translated) {
           if (!current()) return;
           self.pending = null;
@@ -99,8 +105,7 @@ var ArabicLearning = {
             w.lang_key = self.id;
           });
           var answer = round.words.filter(function (w) { return w.word_key == round.id; })[0];
-          round.translationText = answer.sourceWord;
-          round.translationLang = 'en';
+          TranslationAudio.prepare(round);
           round.sound = {
             _loaded: true, fake: !window.speechSynthesis,
             play: function () {
