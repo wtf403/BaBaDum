@@ -90,11 +90,11 @@ test('menu-language changes discard the previous translation response', () => {
   assert.equal(round.translationText, 'кот');
   assert.equal(round.translationLang, 'ru');
 });
-test('original Spanish recording is preferred and uses its actual filename', () => {
+test('cached Spanish recording is preferred and uses its local filename', () => {
   const {audio, context, spoken} = setup('true');
   context.InterfaceData.data.lang_code = 'es';
   context.BabadumRecordings.get = (lang, id) => lang === 'es' && id === 10
-    ? {word: 'el gato', audio_file: 'gato_3210'} : null;
+    ? {word: 'el gato', audio_file: 'gato_3210', audioUrl: '/data/library/media/audio/es/gato_3210.ogg'} : null;
   const played = [];
   context.Howl = function (options) {
     this.play = () => played.push(options);
@@ -105,7 +105,7 @@ test('original Spanish recording is preferred and uses its actual filename', () 
   assert.equal(round.translationText, 'el gato');
   audio.play(round);
   assert.equal(played.length, 1);
-  assert.equal(played[0].src[0], 'https://babadum.com/audio/es/gato_3210.ogg');
+  assert.equal(played[0].src[0], '/data/library/media/audio/es/gato_3210.ogg');
   assert.equal(spoken.length, 0);
   played[0].onend();
   assert.equal(audio.recording, null);
@@ -113,7 +113,7 @@ test('original Spanish recording is preferred and uses its actual filename', () 
 test('failed original recording falls back to Spanish speech and disabling stops playback', () => {
   const {audio, context, spoken} = setup('true');
   context.InterfaceData.data.lang_code = 'es';
-  context.BabadumRecordings.get = () => ({word:'el gato', audio_file:'gato_3210'});
+  context.BabadumRecordings.get = () => ({word:'el gato', audio_file:'gato_3210', audioUrl:'/data/library/media/audio/es/gato_3210.ogg'});
   let options, unloaded = 0;
   context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => unloaded++; };
   const round = {id: 10, translationText:'el gato', translationLang:'es'};
@@ -140,4 +140,13 @@ test('downloaded Spanish recording is served from the local library', () => {
   assert.equal(options.src.length, 2);
   assert.equal(options.src[0], '/data/library/media/audio/es/gato_3210.ogg');
   assert.equal(options.src[1], '/data/library/media/audio/es/gato_3210.m4a');
+});
+
+test('old observed recording metadata never causes an upstream audio request', () => {
+  const {audio, context, spoken} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  context.BabadumRecordings.get = () => ({word: 'el gato', audio_file: 'gato_3210'});
+  context.Howl = function () { throw new Error('Remote audio must not be constructed'); };
+  audio.play({id: 10, translationText: 'el gato', translationLang: 'es'});
+  assert.equal(spoken.length, 1);
 });

@@ -10,10 +10,13 @@ import json
 import logging
 import os
 import socketserver
+from http.cookies import SimpleCookie
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
 from urllib.parse import urlparse
+from local_game import LocalGameAPI
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +29,7 @@ logger = logging.getLogger(__name__)
 PORT = 8001
 DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")  # Set your DeepL API key here or in config
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
+LOCAL_GAME = LocalGameAPI(Path(__file__).resolve().parent)
 
 
 class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -37,8 +41,35 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         if parsed_path.path == "/api/deepl/translate":
             self.handle_deepl_request()
+        elif parsed_path.path in ("/api/game", "/get.php"):
+            self.handle_game_request()
         else:
             self.send_error(404, "Endpoint not found")
+
+    def handle_game_request(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 65536:
+                raise ValueError("Invalid request size")
+            body = self.rfile.read(length).decode("utf-8")
+            if self.headers.get("Content-Type", "").split(";", 1)[0] == "application/json":
+                params = json.loads(body)
+                if not isinstance(params, dict) or any(not isinstance(value, (str, int, float, bool)) for value in params.values()):
+                    raise ValueError("Invalid request fields")
+            else:
+                params = {key: values[-1] for key, values in urllib.parse.parse_qs(body, keep_blank_values=True).items()}
+            cookies = SimpleCookie()
+            cookies.load(self.headers.get("Cookie", ""))
+            language = cookies["local_interface"].value if "local_interface" in cookies else "us"
+            status, response, headers = LOCAL_GAME.handle(params, language)
+        except (ValueError, UnicodeError):
+            status, response, headers = 400, {"type": "error", "code": "invalid_request", "message": "Invalid game request."}, {}
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        for name, value in headers.items():
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(json.dumps(response, ensure_ascii=False).encode("utf-8"))
 
     def handle_deepl_request(self):
         """Proxy DeepL API requests"""

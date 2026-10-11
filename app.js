@@ -108,12 +108,10 @@ var TranslationAudio = {
     var entry = BabadumLibrary.get(this.menuLanguage(), round.id) ||
       BabadumRecordings.get(this.menuLanguage(), round.id) ||
       BabadumRecordings.getByText(this.menuLanguage(), round.translationText);
-    if (!entry || typeof Howl == "undefined") { this.speak(round); return; }
+    if (!entry || !(entry.audioUrls && entry.audioUrls.length || entry.audioUrl) || typeof Howl == "undefined") { this.speak(round); return; }
     round.translationText = entry.word;
     var recording = new Howl({
-      src: entry.audioUrls && entry.audioUrls.length ? entry.audioUrls : entry.audioUrl ? [entry.audioUrl] :
-        ["https://babadum.com/audio/" + this.menuLanguage() + "/" + entry.audio_file + ".ogg",
-         "https://babadum.com/audio/" + this.menuLanguage() + "/" + entry.audio_file + ".m4a"],
+      src: entry.audioUrls && entry.audioUrls.length ? entry.audioUrls : [entry.audioUrl],
       onend: function () { if (TranslationAudio.recording == recording) TranslationAudio.cancel(); },
       onloaderror: function () {
         if (TranslationAudio.recording != recording) return;
@@ -194,10 +192,23 @@ var HanziWriterManager = {
       writerDiv.append(charDiv);
 
       if (typeof HanziWriter !== "undefined") {
+        var localConfig = HanziWriterManager.getConfig();
+        (function (target, config) {
+          config.charDataLoader = function (char, onComplete, onError) {
+            $.getJSON("/data/hanzi/" + encodeURIComponent(char) + ".json")
+              .done(onComplete)
+              .fail(function () {
+                target.data("strokeUnavailable", true).empty().text(char).css({
+                  cursor: "default", fontSize: "100px", lineHeight: "180px"
+                });
+                onError();
+              });
+          };
+        })(charDiv, localConfig);
         var writer = HanziWriter.create(
           charDiv[0],
           character[i],
-          HanziWriterManager.getConfig(),
+          localConfig,
         );
         writers.push(writer);
 
@@ -207,6 +218,7 @@ var HanziWriterManager = {
           $(charDiv).on("click", function (e) {
             e.preventDefault();
             e.stopPropagation();
+            if ($(this).data("strokeUnavailable")) return;
             w.hideCharacter();
             setTimeout(function () {
               w.animateCharacter();
@@ -6459,8 +6471,8 @@ Sounds = {
       !window.audioNotImplemented &&
       ((Sounds.fx = new Howl({
         src: [
-          "https://babadum.com/audio/sounds_fx.ogg",
-          "https://babadum.com/audio/sounds_fx.m4a",
+          "/assets/native/audio/sounds_fx.ogg",
+          "/assets/native/audio/sounds_fx.m4a",
         ],
         sprite: {
           pop: [0, 200],
@@ -7243,7 +7255,7 @@ errorPage = {
     $("body")
       .css("background-color", "#c9b173")
       .append(
-        '<div class="stupid_browser_error"><img src="https://babadum.com/img/stupid_browser_error.png" alt="Image of old computer with a stupid face displayed on old CRT monitor."/><h1>' +
+        '<div class="stupid_browser_error"><img src="/assets/native/img/stupid_browser_error.png" alt="Image of old computer with a stupid face displayed on old CRT monitor."/><h1>' +
           InterfaceData.get("stupid_browser") +
           '</h1><p class="sub">' +
           InterfaceData.get("stupid_browser_sub") +
@@ -7252,7 +7264,7 @@ errorPage = {
   },
   addFont: function () {
     $("head").append(
-      "<style>@font-face {font-family: 'MrDumDumver07srHeavy';src: url('https://babadum.com/css/webfonts/mrdumdumver07sr-heavy.eot');src: url('https://babadum.com/css/webfonts/mrdumdumver07sr-heavy.eot?#iefix') format('embedded-opentype'),url('https://babadum.com/css/webfonts/mrdumdumver07sr-heavy.woff') format('woff'),url('https://babadum.com/css/webfonts/mrdumdumver07sr-heavy.ttf') format('truetype'),url('https://babadum.com/css/webfonts/mrdumdumver07sr-heavy.svg#mr_dum_dumheavy') format('svg');font-weight: normal;font-style: normal;}</style>",
+      "<style>@font-face {font-family: 'MrDumDumver07srHeavy';src: url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.eot');src: url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.eot?#iefix') format('embedded-opentype'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.woff') format('woff'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.ttf') format('truetype'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.svg#mr_dum_dumheavy') format('svg');font-weight: normal;font-style: normal;}</style>",
     );
   },
 };
@@ -9486,9 +9498,7 @@ window.log = function () {
 );
 function googleWebFontLoad() {
   var a = document.createElement("script");
-  a.src =
-    ("https:" == document.location.protocol ? "https" : "http") +
-    "://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js";
+  a.src = "/assets/vendor/webfont-1.js";
   a.type = "text/javascript";
   a.async = "true";
   var b = document.getElementsByTagName("script")[0];
@@ -9661,7 +9671,7 @@ $(window).load(function () {
     WebFontConfig = {
       custom: {
         families: ["MrDumDumver07srHeavy", "MrDumDumver07srHeavyShadow"],
-        urls: ["https://babadum.com/css/ver07srfont.css"],
+        urls: ["/assets/native/css/ver07srfont.css"],
       },
       active: initateApp,
     };
@@ -9735,15 +9745,13 @@ Words = {
   },
   loadRoundAudio: function (a) {
     var recording = BabadumLibrary.get(a.lang, a.id);
-    window.audioNotImplemented
+    var audioUrls = a.audioUrls && a.audioUrls.length ? a.audioUrls : recording && recording.audioUrls && recording.audioUrls.length ? recording.audioUrls : recording && recording.audioUrl ? [recording.audioUrl] : [];
+    (window.audioNotImplemented || !audioUrls.length)
       ? (log("noaudio"),
         (a.sound = { fake: !0, _loaded: !0 }),
         Words.onAudioLoad())
       : (a.sound = new Howl({
-          src: recording && recording.audioUrls && recording.audioUrls.length ? recording.audioUrls : recording && recording.audioUrl ? [recording.audioUrl] : [
-            "https://babadum.com/audio/" + a.lang + "/" + a.audio + ".ogg",
-            "https://babadum.com/audio/" + a.lang + "/" + a.audio + ".m4a",
-          ],
+          src: audioUrls,
           onload: Words.onAudioLoad,
           onend: a.game == "chooseImageSound" ? Sounds.onWordEnd : void 0,
           onloaderror: Words.onAudioError,
@@ -9786,7 +9794,7 @@ AJAX = {
         (a.browser_version = $.browser.version),
         (a.os_name = $.os.name));
     $.post(
-      "https://babadum.com/get.php",
+      "/api/game",
       a,
       a.onReceiveLocation ? AJAX.onReceive : null,
       "json",

@@ -68,7 +68,7 @@ var ArabicLearning = {
     }
     if (!Words.arr.length && !Words.current) this.notice('Preparing Arabic words…');
     $.ajax({
-      url: 'https://babadum.com/get.php', method: 'POST', dataType: 'json', timeout: 20000,
+      url: '/api/game', method: 'POST', dataType: 'json', timeout: 20000,
       data: {type: 'getWord', category: 'words', onReceiveLocation: 'Words', lang: 1, game: game, random: Date.now()},
       success: function (response) {
         if (!current()) return;
