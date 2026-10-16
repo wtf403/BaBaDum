@@ -11,9 +11,9 @@ import sys
 import time
 
 
-def count(folder):
+def count(folder, languages):
     data = json.loads((folder / 'vocabulary.json').read_text())
-    return sum(len(lang['words']) for lang in data['languages'].values())
+    return sum(len(data['languages'].get(code, {}).get('words', {})) for code in languages)
 
 
 def main():
@@ -21,7 +21,12 @@ def main():
     parser.add_argument('--refresh-command', required=True)
     parser.add_argument('--socks-file', required=True)
     parser.add_argument('--stall-seconds', type=int, default=300)
+    parser.add_argument('--languages', default='all')
     args = parser.parse_args()
+    import crawl_babadum
+    languages = list(crawl_babadum.LANGUAGES) if args.languages == 'all' else args.languages.split(',')
+    if not languages or any(code not in crawl_babadum.LANGUAGES for code in languages):
+        parser.error('Unknown language code')
     folder = Path('data/library')
     lock = (folder / '.watcher.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -42,15 +47,15 @@ def main():
         env = dict(os.environ, BABADUM_SOCKS_FILE=args.socks_file)
         with (folder / 'crawl.log').open('ab') as log:
             child = subprocess.Popen([sys.executable, 'scripts/crawl_with_socks.py',
-                '--languages', 'all', '--workers', '21', '--request-rate', '8',
+                '--languages', ','.join(languages), '--workers', str(len(languages)), '--request-rate', '8',
                 '--rounds-per-language', '5000', '--target-per-language', '10000',
                 '--max-no-new', '500'], env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         (folder / 'crawl.pid').write_text(str(child.pid) + '\n')
-        previous, changed = count(folder), time.monotonic()
+        previous, changed = count(folder, languages), time.monotonic()
         print('Started proxy crawler', child.pid, 'words', previous, flush=True)
         while child.poll() is None:
             time.sleep(10)
-            current = count(folder)
+            current = count(folder, languages)
             if current > previous:
                 previous, changed = current, time.monotonic()
             if time.monotonic() - changed >= args.stall_seconds:
