@@ -47,28 +47,51 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Endpoint not found")
 
-    def proxy_auth(self, body):
-        fwd = {"Content-Type": "application/x-www-form-urlencoded"}
+    def proxy_auth(self, body, params):
+        # The frontend posts form-encoded data, but re-encode from params so a
+        # JSON body is still forwarded as the upstream get.php form it expects.
+        encoded = urllib.parse.urlencode(params).encode("utf-8")
+        fwd = {"Content-Type": "application/x-www-form-urlencoded",
+               "User-Agent": "Mozilla/5.0",
+               "Referer": "https://babadum.xyz/"}
         cookie = self.headers.get("Cookie")
         if cookie:
             fwd["Cookie"] = cookie
-        req = urllib.request.Request(AUTH_UPSTREAM_URL, data=body.encode("utf-8"), headers=fwd)
+        req = urllib.request.Request(AUTH_UPSTREAM_URL, data=encoded, headers=fwd)
         try:
             with urllib.request.urlopen(req, timeout=20) as resp:
                 payload = resp.read()
                 status = resp.status
                 ctype = resp.headers.get("Content-Type", "application/json; charset=utf-8")
-                set_cookie = resp.headers.get("Set-Cookie")
+                get_all = getattr(resp.headers, "get_all", None)
+                if callable(get_all):
+                    cookies = get_all("Set-Cookie") or []
+                elif resp.headers.get("Set-Cookie"):
+                    cookies = [resp.headers.get("Set-Cookie")]
+                else:
+                    cookies = []
         except urllib.error.HTTPError as e:
-            e.close()
-            return e.code, {"type": "error", "code": "auth_upstream_error"}, {}
+            try:
+                payload = e.read()
+            except Exception:
+                payload = b""
+            try:
+                e.close()
+            except Exception:
+                pass
+            ctype = e.headers.get("Content-Type", "application/json; charset=utf-8") if e.headers else "application/json; charset=utf-8"
+            self.send_response(e.code)
+            self.send_header("Content-Type", ctype)
+            self.end_headers()
+            self.wfile.write(payload)
+            return None
         except Exception as e:
             logger.error("auth proxy error: %s", e)
             return 502, {"type": "error", "code": "auth_unavailable"}, {}
         self.send_response(status)
         self.send_header("Content-Type", ctype)
-        if set_cookie:
-            self.send_header("Set-Cookie", set_cookie)
+        for value in cookies:
+            self.send_header("Set-Cookie", value)
         self.end_headers()
         self.wfile.write(payload)
         return None
@@ -86,7 +109,7 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 params = {key: values[-1] for key, values in urllib.parse.parse_qs(body, keep_blank_values=True).items()}
             if params.get("category") == "user":
-                out = self.proxy_auth(body)
+                out = self.proxy_auth(body, params)
                 if out is None:
                     return
                 status, response, headers = out

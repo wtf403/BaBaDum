@@ -78,3 +78,5 @@ __pycache__/
 # Pinned browser libraries are intentionally vendored
 !/assets/vendor/*.min.js
 /data/library/.watcher.lock
+# Ephemeral proxy URL; the rotate script recreates it
+/data/proxy/

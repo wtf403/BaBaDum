@@ -8,8 +8,8 @@ NWORKERS=$(echo "$LANGS" | tr ',' '\n' | wc -l | tr -d ' ')
 while true; do
   echo "$(date '+%F %T') supervisor: starting watcher for $LANGS" >> data/library/supervise.log
   python3 scripts/watch_crawler.py \
-    --refresh-command /tmp/babadum-proxy-rotate.py \
-    --socks-file /tmp/babadum-proxy.url \
+    --refresh-command scripts/babadum-proxy-rotate.py \
+    --socks-file data/proxy/proxy.url \
     --languages "$LANGS" \
     --stall-seconds 300 \
     --proxy-check-seconds 60 \
