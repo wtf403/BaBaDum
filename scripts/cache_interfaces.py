@@ -12,7 +12,7 @@ CODES = 'gb us pl de es fr it ru jp se gr cz lt pt ro nl af no hu da cn eo tr uk
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--languages', default=','.join(CODES))
-    parser.add_argument('--endpoint', default='https://babadum.com/get.php')
+    parser.add_argument('--endpoint', default='https://babadum.xyz/get.php')
     args = parser.parse_args()
     destination = Path(__file__).resolve().parents[1] / 'data/local-api/interfaces'
     destination.mkdir(parents=True, exist_ok=True)
@@ -28,7 +28,7 @@ def main():
         for attempt in range(3):
             try:
                 request = urllib.request.Request(args.endpoint, data=body,
-                    headers={'User-Agent':'Mozilla/5.0', 'Referer':'https://babadum.com/'})
+                    headers={'User-Agent':'Mozilla/5.0', 'Referer':'https://babadum.xyz/'})
                 with urllib.request.urlopen(request, timeout=20) as response:
                     value = json.load(response)
                 interface = value.get('interface')

@@ -28,7 +28,7 @@ LANGUAGES = {
     "lt": 15, "pt": 16, "ro": 18, "hu": 23, "da": 12, "cn": 13,
     "eo": 24, "tr": 25, "uk": 26,
 }
-BASE_URL = "https://babadum.com"
+BASE_URL = "https://babadum.xyz"
 MAX_RESPONSE = 4 * 1024 * 1024
 
 

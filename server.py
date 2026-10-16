@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 PORT = 8001
 DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")  # Set your DeepL API key here or in config
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
+AUTH_UPSTREAM_URL = "https://babadum.com/get.php"
 LOCAL_GAME = LocalGameAPI(Path(__file__).resolve().parent)
 
 
@@ -46,6 +47,32 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Endpoint not found")
 
+    def proxy_auth(self, body):
+        fwd = {"Content-Type": "application/x-www-form-urlencoded"}
+        cookie = self.headers.get("Cookie")
+        if cookie:
+            fwd["Cookie"] = cookie
+        req = urllib.request.Request(AUTH_UPSTREAM_URL, data=body.encode("utf-8"), headers=fwd)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                payload = resp.read()
+                status = resp.status
+                ctype = resp.headers.get("Content-Type", "application/json; charset=utf-8")
+                set_cookie = resp.headers.get("Set-Cookie")
+        except urllib.error.HTTPError as e:
+            e.close()
+            return e.code, {"type": "error", "code": "auth_upstream_error"}, {}
+        except Exception as e:
+            logger.error("auth proxy error: %s", e)
+            return 502, {"type": "error", "code": "auth_unavailable"}, {}
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        if set_cookie:
+            self.send_header("Set-Cookie", set_cookie)
+        self.end_headers()
+        self.wfile.write(payload)
+        return None
+
     def handle_game_request(self):
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -58,10 +85,16 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     raise ValueError("Invalid request fields")
             else:
                 params = {key: values[-1] for key, values in urllib.parse.parse_qs(body, keep_blank_values=True).items()}
-            cookies = SimpleCookie()
-            cookies.load(self.headers.get("Cookie", ""))
-            language = cookies["local_interface"].value if "local_interface" in cookies else "us"
-            status, response, headers = LOCAL_GAME.handle(params, language)
+            if params.get("category") == "user":
+                out = self.proxy_auth(body)
+                if out is None:
+                    return
+                status, response, headers = out
+            else:
+                cookies = SimpleCookie()
+                cookies.load(self.headers.get("Cookie", ""))
+                language = cookies["local_interface"].value if "local_interface" in cookies else "us"
+                status, response, headers = LOCAL_GAME.handle(params, language)
         except (ValueError, UnicodeError):
             status, response, headers = 400, {"type": "error", "code": "invalid_request", "message": "Invalid game request."}, {}
         self.send_response(status)
