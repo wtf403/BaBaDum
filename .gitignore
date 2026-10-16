@@ -77,3 +77,4 @@ __pycache__/
 
 # Pinned browser libraries are intentionally vendored
 !/assets/vendor/*.min.js
+/data/library/.watcher.lock

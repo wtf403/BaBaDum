@@ -177,3 +177,24 @@ Static media updates need no app service restart. Validate crawler behavior with
 ```sh
 python3 -m unittest discover -s tests -p test_crawler.py -v
 ```
+
+## SOCKS failover supervisor
+
+`scripts/crawl_with_socks.py` runs the crawler through the SOCKS5 URL in the
+private file named by `BABADUM_SOCKS_FILE`. It requires PySocks and resolves
+upstream hostnames through the tunnel. Credentials must stay outside Git.
+
+`scripts/watch_crawler.py --refresh-command /path/to/refresh --socks-file /path/to/private-url`
+runs 21 workers at the existing aggregate eight requests/second cap. The refresh
+executable must validate a route, write its SOCKS URL to the private URL file,
+and exit successfully. After five minutes without new vocabulary records, the
+supervisor stops and checkpoints the crawler, refreshes the route, and resumes.
+It also resumes after the bounded crawler exits. Stop the supervisor with SIGTERM
+to checkpoint its crawler. Runtime status is in `data/library/watch.log` and
+`data/library/watch.pid` when launched using those paths.
+
+The current machine uses `/tmp/babadum-proxy-rotate.py` and
+`/tmp/babadum-proxy.url`, with two verified tunnels from the us1 proxy pool.
+These private runtime files may need recreation after reboot or temporary-file
+cleanup. A stall can also mean the random vocabulary has been exhausted; rotation
+does not establish that additional words exist.
