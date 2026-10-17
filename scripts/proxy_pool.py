@@ -136,7 +136,7 @@ def refresh(url_file, hosts):
     for index, host in enumerate(hosts):
         port = BASE_PORT + index
         entry = state.get(host) or {}
-        if not alive(entry.get('pid')) or not listen(port):
+        if not listen(port, 2):
             kill_tunnel(entry.get('pid'))
             entry['pid'] = start_tunnel(host, port)
             entry['port'] = port
