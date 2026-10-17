@@ -5,6 +5,9 @@ Tunnels are ordinary SSH dynamic forwards (ssh -N -D). Each host in HOSTS gets a
 local port. --refresh (re)starts missing tunnels, verifies each by asking
 babadum.com for a real game round through it, and writes the first working
 socks5h URL to --url-file. Exit 0 when at least one proxy is verified.
+
+A port that listens but no longer carries traffic is treated as dead: the pool
+replaces whatever owns the port, so a stale forward cannot block recovery.
 """
 import argparse
 import json
@@ -16,10 +19,9 @@ import sys
 import time
 from pathlib import Path
 
-HOSTS = ['us1', 'reg1']
+HOSTS = ['se2', 'us1', 'reg1']
 BASE_PORT = 11880
 STATE = Path('/tmp/babadum-proxy-pool.json')
-ASKPASS = Path('/tmp/babadum-proxy-askpass')
 PROBE_DATA = 'category=words&type=getWord&lang=1&game=chooseImage&onReceiveLocation=Words'
 PROBE_URL = 'https://babadum.com/get.php'
 UA = 'BaBaDumLocalLibrary/1.0'
@@ -58,10 +60,27 @@ def kill_tunnel(pid):
         pass
 
 
+def kill_port_owner(port):
+    """Terminate whatever currently listens on the given local port."""
+    try:
+        result = subprocess.run(
+            ['lsof', '-t', '-iTCP:{}'.format(port), '-sTCP:LISTEN'],
+            capture_output=True, text=True)
+    except OSError:
+        return
+    for token in result.stdout.split():
+        try:
+            os.kill(int(token), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
+
+
 def start_tunnel(host, port):
     cmd = [
         'ssh', '-N', '-D', '127.0.0.1:{}'.format(port),
         '-o', 'ExitOnForwardFailure=yes',
+        '-o', 'ControlMaster=no',
+        '-o', 'ControlPath=none',
         '-o', 'ServerAliveInterval=15',
         '-o', 'ServerAliveCountMax=2',
         '-o', 'ConnectTimeout=15',
@@ -84,9 +103,8 @@ def listen(port, timeout=5):
 
 
 def verify(port, timeout=25):
-    """Return True when babadum returns a real round through this tunnel."""
+    """Return True when babadum answers a real round through this tunnel."""
     if not shutil.which('curl'):
-        # Fall back to a python SOCKS probe when curl is unavailable.
         return verify_python(port, timeout)
     result = subprocess.run([
         'curl', '-sS', '--max-time', str(timeout),
@@ -130,31 +148,42 @@ def verify_python(port, timeout=25):
         _socket.socket = original
 
 
+def ensure_tunnel(host, port, entry, state):
+    """Return a working socks5h URL for the host, or None."""
+    if listen(port, 2) and verify(port):
+        entry['port'] = port
+        return 'socks5h://127.0.0.1:{}'.format(port)
+    if listen(port, 2):
+        # Port answers but the route is dead; take the port back.
+        kill_port_owner(port)
+        time.sleep(1)
+    kill_tunnel(entry.get('pid'))
+    entry['pid'] = start_tunnel(host, port)
+    entry['port'] = port
+    entry['started'] = time.time()
+    state[host] = entry
+    save(state)
+    deadline = time.time() + 25
+    while time.time() < deadline and not listen(port, 2):
+        time.sleep(1)
+    if listen(port, 3) and verify(port):
+        return 'socks5h://127.0.0.1:{}'.format(port)
+    return None
+
+
 def refresh(url_file, hosts):
     state = load()
     working = []
     for index, host in enumerate(hosts):
         port = BASE_PORT + index
         entry = state.get(host) or {}
-        if not listen(port, 2):
-            kill_tunnel(entry.get('pid'))
-            entry['pid'] = start_tunnel(host, port)
-            entry['port'] = port
-            entry['started'] = time.time()
-            state[host] = entry
-            save(state)
-            deadline = time.time() + 20
-            while time.time() < deadline and not listen(port, 2):
-                time.sleep(1)
-        entry.setdefault('port', port)
-        if listen(port, 3) and verify(port):
-            entry['ok'] = True
-            entry['url'] = 'socks5h://127.0.0.1:{}'.format(port)
-            working.append(entry['url'])
-        else:
-            entry['ok'] = False
+        url = ensure_tunnel(host, port, entry, state)
+        entry['ok'] = bool(url)
+        if url:
+            entry['url'] = url
+            working.append(url)
         state[host] = entry
-    save(state)
+        save(state)
     if working:
         Path(url_file).write_text(working[0] + chr(10))
         Path(url_file).chmod(0o600)
@@ -174,10 +203,11 @@ def main():
     hosts = [h for h in args.hosts.split(',') if h]
     if args.status:
         state = load()
-        for host in hosts:
+        for index, host in enumerate(hosts):
+            port = BASE_PORT + index
             entry = state.get(host, {})
-            print(host, 'pid', entry.get('pid'), 'port', entry.get('port'),
-                  'ok', entry.get('ok'), 'running', alive(entry.get('pid')))
+            print(host, 'port', port, 'listening', listen(port, 2),
+                  'ok', entry.get('ok'), 'pid', entry.get('pid'))
         return 0
     return refresh(args.url_file, hosts)
 

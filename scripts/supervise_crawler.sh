@@ -11,6 +11,7 @@ while true; do
     --socks-file data/proxy/proxy.url \
     --languages "$LANGS" \
     --stall-seconds 300 \
+    --request-rate 2 \
     --proxy-check-seconds 60 \
     >> data/library/watch.log 2>&1
   CODE=$?
