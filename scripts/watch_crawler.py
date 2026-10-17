@@ -43,6 +43,56 @@ def terminate_child(child, grace=45):
             pass
 
 
+
+def cleanup_orphans(grace=15):
+    """Terminate crawler processes orphaned by a previous watcher.
+
+    A crawler stuck in shutdown keeps the output directory lock, so every new
+    crawler would exit immediately and collection would silently stop. Only
+    processes reparented to init are touched; the current child never is.
+    """
+    try:
+        listing = subprocess.run(['ps', '-eo', 'pid=,ppid=,command='],
+                                 capture_output=True, text=True).stdout
+    except OSError:
+        return
+    victims = []
+    for line in listing.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) < 3:
+            continue
+        pid, ppid, command = parts
+        if ppid == '1' and 'crawl_with_socks.py' in command:
+            try:
+                victims.append(int(pid))
+            except ValueError:
+                pass
+    for pid in victims:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.monotonic() + grace
+    while victims and time.monotonic() < deadline:
+        victims = [pid for pid in victims if _alive(pid)]
+        if victims:
+            time.sleep(1)
+    for pid in victims:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        print('Killed orphan crawler', pid, flush=True)
+
+
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def route_ok(socks_file, timeout=20):
     """True when the proxy listed in socks_file returns a real babadum round."""
     try:
@@ -98,6 +148,7 @@ def main():
             time.sleep(delay)
             continue
         failures = 0
+        cleanup_orphans()
         env = dict(os.environ, BABADUM_SOCKS_FILE=args.socks_file)
         with (folder / 'crawl.log').open('ab') as log:
             child = subprocess.Popen([sys.executable, 'scripts/crawl_with_socks.py',
