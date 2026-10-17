@@ -198,3 +198,30 @@ The current machine uses `/tmp/babadum-proxy-rotate.py` and
 These private runtime files may need recreation after reboot or temporary-file
 cleanup. A stall can also mean the random vocabulary has been exhausted; rotation
 does not establish that additional words exist.
+
+## Running collection continuously
+
+`BASE_URL` in `scripts/crawl_babadum.py` must point at the public game
+(`https://babadum.com`). Our own deployment answers `get.php` from the local
+library — `server.py` forwards only `category=user` upstream to babadum.com for
+auth — so crawling it can only return words already collected. Rounds then
+report zero new words indefinitely while looking healthy. Interface caching
+(`scripts/cache_interfaces.py`) still targets the deployment, which is correct.
+
+`scripts/proxy_pool.py --refresh --url-file data/proxy/proxy.url` keeps verified
+SOCKS5 tunnels over the SSH hosts in `HOSTS` (default `us1`, `reg1`), probing
+each port and asking babadum.com for a real round before trusting it. It is the
+refresh hook for `scripts/watch_crawler.py` and a fallback when the Colab mint in
+`scripts/babadum-proxy-rotate.py` has no connected runtime or no browser on port
+9229.
+
+`scripts/supervise_crawler.sh all` wraps the watcher in a restart loop, and
+`watch_crawler.py` restarts the crawler child and rotates the proxy when the port
+dies or five minutes pass without new words. Both run as launchd agents
+(`wtf.babadum.supervisor`, `wtf.babadum.monitor`) so they survive shell sessions
+and restart on failure; `launchctl list | grep babadum` shows their state.
+
+`scripts/monitor_library.py` appends totals and working-tree counts to
+`data/library/monitor.log` every minute and makes a snapshot commit of
+`data/library` once the vocabulary grows by 25 words or 30 minutes pass with
+changes pending. It never pushes; pushing to `main` still deploys.
