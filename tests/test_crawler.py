@@ -49,7 +49,7 @@ class CrawlerTest(unittest.TestCase):
             self.assertEqual(form["type"], ["getWord"])
             self.assertEqual(form["lang"], ["4"])
             self.assertNotIn("a", form)
-            self.assertEqual(client.requests[1][0], "https://babadum.xyz/audio/es/volar_3141.ogg")
+            self.assertEqual(client.requests[1][0], "https://babadum.com/audio/es/volar_3141.ogg")
             saved = json.loads((Path(folder) / "vocabulary.json").read_text())
             entry = saved["languages"]["es"]["words"]["1253"]
             self.assertEqual(entry["id"], "3141")
@@ -209,8 +209,8 @@ class CrawlerTest(unittest.TestCase):
         with patch.object(crawler.time, "monotonic", side_effect=[10, 10.2, 11]), \
                 patch.object(crawler.time, "sleep") as sleep, \
                 patch.object(crawler.urllib.request, "urlopen", side_effect=[io.BytesIO(b"{}"), io.BytesIO(b"OggS")]):
-            client.request("https://babadum.xyz/get.php", b"type=getWord")
-            client.request("https://babadum.xyz/audio/es/volar_3141.ogg")
+            client.request("https://babadum.com/get.php", b"type=getWord")
+            client.request("https://babadum.com/audio/es/volar_3141.ogg")
         self.assertAlmostEqual(sleep.call_args.args[0], 0.8)
 
     def test_truncated_http_retries_are_bounded_and_next_round_continues(self):
@@ -241,7 +241,7 @@ class CrawlerTest(unittest.TestCase):
         good = io.BytesIO(b"OggScomplete")
         with patch.object(crawler.time, "sleep"), \
                 patch.object(crawler.urllib.request, "urlopen", side_effect=[short, good]) as upstream:
-            result = crawler.HTTPClient().request("https://babadum.xyz/audio/es/volar_3141.ogg")
+            result = crawler.HTTPClient().request("https://babadum.com/audio/es/volar_3141.ogg")
         self.assertEqual(upstream.call_count, 2)
         self.assertEqual(result, b"OggScomplete")
 
@@ -249,7 +249,7 @@ class CrawlerTest(unittest.TestCase):
         with patch.object(crawler.time, "sleep") as sleep, \
                 patch.object(crawler.urllib.request, "urlopen", side_effect=KeyboardInterrupt) as upstream:
             with self.assertRaises(KeyboardInterrupt):
-                crawler.HTTPClient().request("https://babadum.xyz/get.php", b"type=getWord")
+                crawler.HTTPClient().request("https://babadum.com/get.php", b"type=getWord")
         upstream.assert_called_once()
         sleep.assert_not_called()
 

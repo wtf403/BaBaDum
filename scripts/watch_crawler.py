@@ -5,6 +5,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import shlex
 import signal
 import socket
 import subprocess
@@ -54,7 +55,7 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     while True:
-        refreshed = subprocess.run([args.refresh_command], timeout=120).returncode == 0
+        refreshed = subprocess.run(shlex.split(args.refresh_command), timeout=180).returncode == 0
         if not refreshed:
             print('Proxy refresh failed; retrying in 60 seconds', flush=True)
             time.sleep(60)

@@ -1,14 +1,13 @@
 #!/bin/zsh
 # Keep watch_crawler alive: restart it if it ever exits, so collection
 # resumes on failure (proxy death, crash, reboot of tunnels, etc).
-# Usage: supervise_crawler.sh [languages]  (default: fr,ru,us,gb)
+# Usage: supervise_crawler.sh [languages]  (default: all)
 cd "$(dirname "$0")/.." || exit 1
-LANGS="${1:-fr,ru,us,gb}"
-NWORKERS=$(echo "$LANGS" | tr ',' '\n' | wc -l | tr -d ' ')
+LANGS="${1:-all}"
 while true; do
   echo "$(date '+%F %T') supervisor: starting watcher for $LANGS" >> data/library/supervise.log
   python3 scripts/watch_crawler.py \
-    --refresh-command scripts/babadum-proxy-rotate.py \
+    --refresh-command "python3 scripts/proxy_pool.py --refresh --url-file data/proxy/proxy.url" \
     --socks-file data/proxy/proxy.url \
     --languages "$LANGS" \
     --stall-seconds 300 \

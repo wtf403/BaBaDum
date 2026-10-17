@@ -30,7 +30,7 @@ def shared():
 
 def error(code, retry_after=None):
     headers = {} if retry_after is None else {'Retry-After': retry_after}
-    return urllib.error.HTTPError('https://babadum.xyz/get.php', code, 'retry', headers, None)
+    return urllib.error.HTTPError('https://babadum.com/get.php', code, 'retry', headers, None)
 
 
 class RateLimitsTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class RateLimitsTests(unittest.TestCase):
         with patch.object(crawler.time, 'monotonic', side_effect=lambda: clock.now), \
                 patch.object(crawler.time, 'sleep', side_effect=clock.sleep), \
                 patch.object(crawler.urllib.request, 'urlopen', side_effect=responses):
-            return client.request('https://babadum.xyz/get.php')
+            return client.request('https://babadum.com/get.php')
 
     def test_retry_after_seconds_is_not_capped_and_stats_are_observable(self):
         client, clock = crawler.HTTPClient(retries=1), Clock()
