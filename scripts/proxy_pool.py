@@ -27,6 +27,20 @@ PROBE_URL = 'https://babadum.com/get.php'
 UA = 'BaBaDumLocalLibrary/1.0'
 
 
+def default_hosts():
+    """Choose proxy hosts: explicit env, then data/proxy/hosts.txt, then defaults."""
+    override = os.environ.get('BABADUM_PROXY_HOSTS')
+    if override:
+        return [h.strip() for h in override.split(',') if h.strip()]
+    hosts_file = Path('data/proxy/hosts.txt')
+    try:
+        entries = [line.strip() for line in hosts_file.read_text().splitlines()]
+    except OSError:
+        entries = []
+    entries = [h for h in entries if h and not h.startswith('#')]
+    return entries or HOSTS
+
+
 def load():
     if STATE.exists():
         try:
@@ -200,11 +214,11 @@ def refresh(url_file, hosts):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url-file', default='data/proxy/proxy.url')
-    parser.add_argument('--hosts', default=','.join(HOSTS))
+    parser.add_argument('--hosts', default=None)
     parser.add_argument('--status', action='store_true')
     parser.add_argument('--refresh', action='store_true', help='ensure tunnels and verify')
     args = parser.parse_args()
-    hosts = [h for h in args.hosts.split(',') if h]
+    hosts = [h for h in args.hosts.split(',') if h] if args.hosts else default_hosts()
     if args.status:
         state = load()
         for index, host in enumerate(hosts):
