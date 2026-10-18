@@ -185,9 +185,13 @@ def refresh(url_file, hosts):
         state[host] = entry
         save(state)
     if working:
-        Path(url_file).write_text(working[0] + chr(10))
+        turn = int(state.get('_rotate', 0) or 0)
+        chosen = working[turn % len(working)]
+        state['_rotate'] = turn + 1
+        save(state)
+        Path(url_file).write_text(chosen + chr(10))
         Path(url_file).chmod(0o600)
-        print('proxy pool ok:', ', '.join(working))
+        print('proxy pool ok:', ', '.join(working), '| active:', chosen)
         return 0
     print('no working proxy in pool')
     return 1

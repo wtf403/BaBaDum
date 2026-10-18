@@ -143,7 +143,7 @@ def main():
         refreshed = subprocess.run(shlex.split(args.refresh_command), timeout=600).returncode == 0
         if not refreshed or not route_ok(args.socks_file):
             failures += 1
-            delay = min(60 * (2 ** (failures - 1)), 600)
+            delay = min(60 * (2 ** (failures - 1)), 1800)
             print('Proxy unavailable; retrying in {} seconds'.format(delay), flush=True)
             time.sleep(delay)
             continue
