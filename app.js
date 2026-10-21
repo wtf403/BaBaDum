@@ -9795,6 +9795,10 @@ Words = {
 };
 AJAX = {
   id: 0,
+  // Auth (category "user") is served by the original site, which allows
+  // cross-origin calls, so the browser posts straight to it instead of through
+  // this host (the deployment cannot reach babadum.com itself).
+  authUrl: "https://babadum.com/get.php",
   post: function (a) {
     // Arabic progress is local; never submit translated rounds as English answers.
     if (a && a.type == "anwser" && Words.current && Words.current.arabic) return;
@@ -9808,7 +9812,7 @@ AJAX = {
         (a.browser_version = $.browser.version),
         (a.os_name = $.os.name));
     $.post(
-      "/api/game",
+      a.category == "user" ? AJAX.authUrl : "/api/game",
       a,
       a.onReceiveLocation ? AJAX.onReceive : null,
       "json",

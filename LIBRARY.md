@@ -208,12 +208,11 @@ auth — so crawling it can only return words already collected. Rounds then
 report zero new words indefinitely while looking healthy. Interface caching
 (`scripts/cache_interfaces.py`) still targets the deployment, which is correct.
 
-`scripts/proxy_pool.py --refresh --url-file data/proxy/proxy.url` keeps verified
-SOCKS5 tunnels over the SSH hosts in `HOSTS` (default `us1`, `reg1`), probing
-each port and asking babadum.com for a real round before trusting it. It is the
-refresh hook for `scripts/watch_crawler.py` and a fallback when the Colab mint in
-`scripts/babadum-proxy-rotate.py` has no connected runtime or no browser on port
-9229.
+`scripts/refresh_us1_proxy.py` selects a ready Colab proxy slot from the us1 pool
+and opens a local SOCKS5 forward through us1. It asks babadum.com for a real
+round before writing `data/proxy/proxy.url`, which is the refresh hook for
+`scripts/watch_crawler.py`. `scripts/proxy_pool.py` remains available for direct
+SSH hosts when their egress routes work.
 
 `scripts/supervise_crawler.sh all` wraps the watcher in a restart loop, and
 `watch_crawler.py` restarts the crawler child and rotates the proxy when the port

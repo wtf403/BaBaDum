@@ -9,6 +9,7 @@ import http.server
 import json
 import logging
 import os
+import re
 import socketserver
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -29,7 +30,6 @@ logger = logging.getLogger(__name__)
 PORT = 8001
 DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")  # Set your DeepL API key here or in config
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
-AUTH_UPSTREAM_URL = "https://babadum.com/get.php"
 LOCAL_GAME = LocalGameAPI(Path(__file__).resolve().parent)
 
 
@@ -47,55 +47,6 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Endpoint not found")
 
-    def proxy_auth(self, body, params):
-        # The frontend posts form-encoded data, but re-encode from params so a
-        # JSON body is still forwarded as the upstream get.php form it expects.
-        encoded = urllib.parse.urlencode(params).encode("utf-8")
-        fwd = {"Content-Type": "application/x-www-form-urlencoded",
-               "User-Agent": "Mozilla/5.0",
-               "Referer": "https://babadum.xyz/"}
-        cookie = self.headers.get("Cookie")
-        if cookie:
-            fwd["Cookie"] = cookie
-        req = urllib.request.Request(AUTH_UPSTREAM_URL, data=encoded, headers=fwd)
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                payload = resp.read()
-                status = resp.status
-                ctype = resp.headers.get("Content-Type", "application/json; charset=utf-8")
-                get_all = getattr(resp.headers, "get_all", None)
-                if callable(get_all):
-                    cookies = get_all("Set-Cookie") or []
-                elif resp.headers.get("Set-Cookie"):
-                    cookies = [resp.headers.get("Set-Cookie")]
-                else:
-                    cookies = []
-        except urllib.error.HTTPError as e:
-            try:
-                payload = e.read()
-            except Exception:
-                payload = b""
-            try:
-                e.close()
-            except Exception:
-                pass
-            ctype = e.headers.get("Content-Type", "application/json; charset=utf-8") if e.headers else "application/json; charset=utf-8"
-            self.send_response(e.code)
-            self.send_header("Content-Type", ctype)
-            self.end_headers()
-            self.wfile.write(payload)
-            return None
-        except Exception as e:
-            logger.error("auth proxy error: %s", e)
-            return 502, {"type": "error", "code": "auth_unavailable"}, {}
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        for value in cookies:
-            self.send_header("Set-Cookie", value)
-        self.end_headers()
-        self.wfile.write(payload)
-        return None
-
     def handle_game_request(self):
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -108,16 +59,13 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     raise ValueError("Invalid request fields")
             else:
                 params = {key: values[-1] for key, values in urllib.parse.parse_qs(body, keep_blank_values=True).items()}
-            if params.get("category") == "user":
-                out = self.proxy_auth(body, params)
-                if out is None:
-                    return
-                status, response, headers = out
-            else:
-                cookies = SimpleCookie()
-                cookies.load(self.headers.get("Cookie", ""))
-                language = cookies["local_interface"].value if "local_interface" in cookies else "us"
-                status, response, headers = LOCAL_GAME.handle(params, language)
+            # Auth (category "user") is handled by the browser against
+            # babadum.com directly; every request that reaches this host is
+            # served from the local library.
+            cookies = SimpleCookie()
+            cookies.load(self.headers.get("Cookie", ""))
+            language = cookies["local_interface"].value if "local_interface" in cookies else "us"
+            status, response, headers = LOCAL_GAME.handle(params, language)
         except (ValueError, UnicodeError):
             status, response, headers = 400, {"type": "error", "code": "invalid_request", "message": "Invalid game request."}, {}
         self.send_response(status)
@@ -228,16 +176,53 @@ class HistoryAPIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Check if the requested file exists
         if os.path.exists(path) and os.path.isfile(path):
             # File exists, serve it normally
+            if os.path.basename(path) == "index.html":
+                return self.serve_localized_index()
             return http.server.SimpleHTTPRequestHandler.do_GET(self)
         else:
             # File doesn't exist, check if it's a route (not a file extension)
             if "." not in os.path.basename(path):
                 # Looks like a route, serve index.html
-                self.path = "/index.html"
-                return http.server.SimpleHTTPRequestHandler.do_GET(self)
+                return self.serve_localized_index()
             else:
                 # Has extension but doesn't exist, return 404
                 return http.server.SimpleHTTPRequestHandler.do_GET(self)
+
+    def do_HEAD(self):
+        """Answer HEAD for page routes with the same headers as GET."""
+        path = urlparse(self.path).path.lstrip("/")
+        if not path or os.path.basename(path) == "index.html" or (
+            not os.path.isfile(path) and "." not in os.path.basename(path)
+        ):
+            return self.serve_localized_index()
+        return http.server.SimpleHTTPRequestHandler.do_HEAD(self)
+
+    def serve_localized_index(self):
+        """Serve index.html with the stored menu language applied."""
+        cookies = SimpleCookie()
+        cookies.load(self.headers.get("Cookie", ""))
+        code = cookies["local_interface"].value if "local_interface" in cookies else "us"
+        if not re.fullmatch(r"[a-z]{2}", str(code)):
+            code = "us"
+        html = (Path(__file__).resolve().parent / "index.html").read_text(encoding="utf-8")
+        if code != "us":
+            interface = LOCAL_GAME.interface(code)
+            payload = json.dumps(interface, ensure_ascii=False).replace("</", "<\\/")
+            injection = (
+                "<script>try{Object.assign(InterfaceData.data,"
+                + payload
+                + ");}catch(e){}</script>"
+            )
+            html = html.replace("</head>", injection + "</head>", 1)
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Vary", "Cookie")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def do_OPTIONS(self):
         """Handle OPTIONS requests for CORS preflight"""
