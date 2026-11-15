@@ -9,7 +9,7 @@ function setup(saved, supported = true) {
   const speechSynthesis = {getVoices: () => [{lang: 'en-US'}, {lang: 'ru-RU'}],
     speak: speech => spoken.push(speech), cancel: () => canceled++};
   const translations = [];
-  const context = {Sounds: {active: true},
+  const context = {Sounds: {active: true}, Game: {speed: 1},
     InterfaceData: {data: {lang_code: 'us'}},
     BabadumLibrary: {get: () => null},
     BabadumRecordings: {get: () => null, getByText: () => null, normalizeLanguage: code => code},
@@ -106,10 +106,44 @@ test('cached Spanish recording is preferred and uses its local filename', () => 
   audio.play(round);
   assert.equal(played.length, 1);
   assert.equal(played[0].src[0], '/data/library/media/audio/es/gato_3210.ogg');
+  assert.equal(played[0].rate, 1);
   assert.equal(spoken.length, 0);
   played[0].onend();
   assert.equal(audio.recording, null);
 });
+test('new and replacement translation recordings use the currently selected speed', () => {
+  const {audio, context, spoken} = setup('true');
+  context.InterfaceData.data.lang_code = 'es';
+  context.BabadumRecordings.get = () => ({word: 'el gato',
+    audioUrl: '/data/library/media/audio/es/gato_3210.ogg'});
+  const recordings = [];
+  context.Howl = function (options) {
+    this.options = options;
+    this.played = false;
+    this.unloaded = false;
+    this.play = () => { this.played = true; };
+    this.unload = () => { this.unloaded = true; };
+    recordings.push(this);
+  };
+  const round = {id: 10, translationText: 'el gato', translationLang: 'es'};
+  for (const speed of [1.5, 2, 3, 1]) {
+    const previous = audio.recording;
+    const count = recordings.length;
+    context.Game.speed = speed;
+    audio.play(round);
+    assert.equal(recordings.length, count + 1);
+    assert.equal(audio.recording, recordings.at(-1));
+    assert.equal(audio.recording.options.rate, speed);
+    assert.equal(audio.recording.played, true);
+    assert.equal(audio.recording.unloaded, false);
+    if (previous) {
+      assert.notEqual(audio.recording, previous);
+      assert.equal(previous.unloaded, true);
+    }
+  }
+  assert.equal(spoken.length, 0);
+});
+
 test('failed original recording falls back to Spanish speech and disabling stops playback', () => {
   const {audio, context, spoken} = setup('true');
   context.InterfaceData.data.lang_code = 'es';

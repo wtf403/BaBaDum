@@ -118,6 +118,7 @@ var TranslationAudio = {
     round.translationText = entry.word;
     var recording = new Howl({
       src: entry.audioUrls && entry.audioUrls.length ? entry.audioUrls : [entry.audioUrl],
+      rate: Game.speed,
       onend: function () { if (TranslationAudio.recording == recording) TranslationAudio.cancel(); },
       onloaderror: function () {
         if (TranslationAudio.recording != recording) return;
@@ -2760,14 +2761,11 @@ Game = {
   speedOptions: [1, 1.5, 2, 3],
   chooseImage_size: 42,
   oneImage_size: 56,
-  initSpeedControl: function () {
+  initSpeed: function () {
     try {
       var saved = parseFloat(localStorage.gameSpeed);
       if (Game.speedOptions.indexOf(saved) != -1) Game.speed = saved;
     } catch (a) {}
-    Game.speedControl = $(".game_speed");
-    Game.speedControl.on(VAR.click, ".speed_btn", Game.onSpeedSelect);
-    Game.updateSpeedControl();
   },
   setSpeed: function (a) {
     a = parseFloat(a);
@@ -2776,19 +2774,10 @@ Game = {
     try {
       localStorage.gameSpeed = String(a);
     } catch (b) {}
-    Game.updateSpeedControl();
-  },
-  onSpeedSelect: function (a) {
-    a.preventDefault();
-    Game.setSpeed($(a.currentTarget).attr("data-speed"));
-  },
-  updateSpeedControl: function () {
-    if (!Game.speedControl) return;
-    Game.speedControl.attr("data-speed", String(Game.speed));
-    Game.speedControl.find(".speed_btn").each(function () {
-      var a = parseFloat($(this).attr("data-speed")) == Game.speed;
-      $(this).toggleClass("is-active", a).attr("aria-pressed", String(a));
+    Words.arr.concat(Words.current || []).forEach(function (round) {
+      if (round.sound && typeof round.sound.rate == "function") round.sound.rate(a);
     });
+    if (TranslationAudio.recording) TranslationAudio.recording.rate(a);
   },
   init: function () {
     Game.langID = Address.getParam("lang");
@@ -2868,7 +2857,7 @@ Game = {
     new Thumb(!0, Colors[VAR.color_id]);
     new Thumb(!1, Colors[VAR.color_id]);
     Icons.init();
-    Game.initSpeedControl();
+    Game.initSpeed();
     Game.loop(0);
     Game.setCanvasWH();
     $(window).on("globalLayout", Game.setCanvasWH);
@@ -6652,6 +6641,7 @@ UserMenu.btn_state = {
     { l: "credits" },
     { l: "lang" },
     { l: "playTranslation" },
+    { l: "gameSpeed" },
     { l: "signOut" },
   ],
   out: [
@@ -6661,6 +6651,7 @@ UserMenu.btn_state = {
     { l: "credits" },
     { l: "lang" },
     { l: "playTranslation" },
+    { l: "gameSpeed" },
     { l: "signIn" },
   ],
 };
@@ -6816,7 +6807,9 @@ UserMenu.prototype.set = function (a) {
           new BumButton(
             this.btn_state[this.state][a].l == "playTranslation"
               ? "Play translation: " + (TranslationAudio.enabled ? "On" : "Off")
-              : this.btn_state[this.state][a].l,
+              : this.btn_state[this.state][a].l == "gameSpeed"
+                ? "Game speed: " + Game.speed + "\u00d7"
+                : this.btn_state[this.state][a].l,
             this.onClick,
             this.color,
             null,
@@ -6832,6 +6825,8 @@ UserMenu.prototype.set = function (a) {
             name: "playTranslation_btn",
             "aria-pressed": String(TranslationAudio.enabled),
           });
+        if (this.btn_state[this.state][a].l == "gameSpeed")
+          this.btns[this.btns.length - 1].btn.attr("name", "gameSpeed_btn");
         this.btn_state[this.state][a].l == "change2" &&
           this.btns[this.btns.length - 1].btn.attr("name", "change");
         this.btns[this.btns.length - 1].el
@@ -6920,6 +6915,9 @@ UserMenu.prototype.onClick = function (a) {
         }));
     else if (a == "playTranslation") {
       TranslationAudio.setEnabled(!TranslationAudio.enabled);
+      UserMenu.set(!0);
+    } else if (a == "gameSpeed") {
+      Game.setSpeed(Game.speedOptions[(Game.speedOptions.indexOf(Game.speed) + 1) % Game.speedOptions.length]);
       UserMenu.set(!0);
     } else if (a == "lang") UserMenu.showLang(UserMenu._showLang);
     else if (a == "home") Address.goHome();
@@ -9798,6 +9796,7 @@ Words = {
         Words.onAudioLoad())
       : (a.sound = new Howl({
           src: audioUrls,
+          rate: Game.speed,
           onload: Words.onAudioLoad,
           onend: a.game == "chooseImageSound" ? Sounds.onWordEnd : void 0,
           onloaderror: Words.onAudioError,
