@@ -80,7 +80,7 @@ class VocabularyCatalog:
                                     "media/audio/{}/{}.ogg".format(code, entry["audio_file"]),
                                     "media/audio/{}/{}.m4a".format(code, entry["audio_file"])) and
                                     self.media_path(relative)):
-                                audio.append("/data/library/" + relative)
+                                audio.append("https://raw.githubusercontent.com/wtf403/BaBaDum/main/data/library/" + relative)
                         if not audio:
                             continue
                         color = str(entry.get("color_key", "12"))

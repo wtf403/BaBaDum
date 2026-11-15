@@ -1,6 +1,7 @@
 // The optional local library never asks the upstream game for random rounds.
+// Loads library data from the public GitHub repository (raw content) by default.
 var BabadumLibrary = (function () {
-  var base = '/data/library/';
+  var base = window.BABADUM_LIBRARY_BASE || 'https://raw.githubusercontent.com/wtf403/BaBaDum/main/data/library/';
   var manifest = null;
   var state = 'idle';
   var callbacks = [];
