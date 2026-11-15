@@ -35,6 +35,7 @@ jobs:
             --exclude='/data/library/.crawler.lock' \
             --exclude='/data/library/*.pid' \
             --exclude='/data/library/.workers/' \
+            --exclude='/data/library/media/audio/' \
             --exclude='*.tmp' \
             --filter='P /data/library/***' \
             ./ \

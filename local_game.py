@@ -78,8 +78,7 @@ class VocabularyCatalog:
                             relative = entry.get(name)
                             if (isinstance(relative, str) and relative in (
                                     "media/audio/{}/{}.ogg".format(code, entry["audio_file"]),
-                                    "media/audio/{}/{}.m4a".format(code, entry["audio_file"])) and
-                                    self.media_path(relative)):
+                                    "media/audio/{}/{}.m4a".format(code, entry["audio_file"]))):
                                 audio.append("https://raw.githubusercontent.com/wtf403/BaBaDum/main/data/library/" + relative)
                         if not audio:
                             continue
