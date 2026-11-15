@@ -403,7 +403,7 @@ Bg = {
       Bg.fill();
     }
     for (var a = 0; a < Bg.fills.length; a++) {
-      Bg.fills[a].t += 1e3 / VAR.fps;
+      Bg.fills[a].t += VAR.dt;
       var c = Bg.fills[a].c;
       if (c.length == 1)
         ((Game.b_c.fillStyle = c[0]),
@@ -494,7 +494,7 @@ BgCircle.draw = function () {
   BgCircle.animated = !1;
   for (var c in BgCircle.arr) {
     var a = BgCircle.arr[c];
-    a.time += 1e3 / VAR.fps;
+    a.time += VAR.dt;
     if (a.out && a.time >= BgCircle.durationOut) a._remove();
     else {
       if (a.time < (!a.out ? BgCircle.durationIn : BgCircle.durationOut))
@@ -635,7 +635,7 @@ Blop.prototype.draw = function () {
     var b = a == this.points.length ? this.points[0] : this.points[a];
     if (a < this.points.length)
       (b.t > b.d && this.setNextXY(b),
-        (b.t += 1e3 / VAR.fps),
+        (b.t += VAR.dt),
         (b.x = Easing.get(b.ease, b.start_x, b.end_x, b.t, b.d, 1.5)),
         (b.y = Easing.get(b.ease, b.start_y, b.end_y, b.t, b.d, 1.5)),
         (b.c_x = Easing.get(b.ease, b.start_c_x, b.end_c_x, b.t, b.d, 1.5)),
@@ -750,7 +750,7 @@ BumInfo.prototype.remove = function (a) {
 BumInfo.delay = function () {
   if (BumInfo.d && BumInfo.d > 0) {
     if (
-      ((BumInfo.d -= 1e3 / VAR.fps),
+      ((BumInfo.d -= VAR.dt),
       !BumInfo.c && BumInfo.delay_label && BumInfo.d < 250)
     )
       ((BumInfo.delay_label = null), Game.start());
@@ -1516,7 +1516,7 @@ BumText.prototype.draw = function () {
     this.setId || this.ctx.clearRect(0, 0, this.W, this.H);
     for (var b = 0; b < this.letters.length; b++) {
       var a = this.letters[b];
-      if (this.out && a.out_delay > 0) a.out_delay -= 1e3 / VAR.fps;
+      if (this.out && a.out_delay > 0) a.out_delay -= VAR.dt;
       else if (this.out && a.out_delay <= 0 && !a.out)
         ((a.out = !0),
           (a.start_scale = a.scale),
@@ -1524,9 +1524,9 @@ BumText.prototype.draw = function () {
           (a.current_time = 0),
           (a.duration = Math.round(this.duration * 0.3)),
           (a.delay = 0));
-      if (a.mark_delay && a.mark_delay > 0) a.mark_delay -= 1e3 / VAR.fps;
+      if (a.mark_delay && a.mark_delay > 0) a.mark_delay -= VAR.dt;
       else if (a.mark_delay !== void 0) (delete a.mark_delay, (a.marked = !0));
-      if (a.unmark_delay && a.unmark_delay > 0) a.unmark_delay -= 1e3 / VAR.fps;
+      if (a.unmark_delay && a.unmark_delay > 0) a.unmark_delay -= VAR.dt;
       else if (a.unmark_delay !== void 0)
         (delete a.unmark_delay, (a.marked = !1));
       if (
@@ -1538,7 +1538,7 @@ BumText.prototype.draw = function () {
       )
         this.set.is_animating = !0;
       if (a.marked && a.mark_scale < BumText.maxMarkScale)
-        ((a.mark_time += 1e3 / VAR.fps),
+        ((a.mark_time += VAR.dt),
           (a.mark_scale = Easing.get(
             "easeOutQuart",
             a.start_mark_scale,
@@ -1548,7 +1548,7 @@ BumText.prototype.draw = function () {
           )),
           (this.set.is_animating = !0));
       else if (!a.marked && a.mark_scale > 1)
-        ((a.mark_time += 1e3 / VAR.fps),
+        ((a.mark_time += VAR.dt),
           (a.mark_scale = Easing.get(
             "easeOutQuad",
             a.start_mark_scale,
@@ -1557,10 +1557,10 @@ BumText.prototype.draw = function () {
             BumText.mark_out_duration,
           )),
           (this.set.is_animating = !0));
-      if (a.delay > 0) a.delay -= 1e3 / VAR.fps;
+      if (a.delay > 0) a.delay -= VAR.dt;
       else if (a != " ") {
         if (a.current_time < a.duration)
-          ((a.current_time += 1e3 / VAR.fps),
+          ((a.current_time += VAR.dt),
             (a.scale = Easing.get(
               a.out ? BumText.outEasing : BumText.inEasing,
               a.start_scale,
@@ -1622,7 +1622,7 @@ BumText.prototype.draw = function () {
       if (this.out && !this.cross_out_out) this.cross_out_out = !0;
       if (!this.cross_out_out && this.cross_out_x2_scale < 1) {
         if (
-          ((this.cross_out_t += 1e3 / VAR.fps),
+          ((this.cross_out_t += VAR.dt),
           (this.cross_out_x2_scale = Easing.get(
             "easeOutQuad",
             0,
@@ -1635,7 +1635,7 @@ BumText.prototype.draw = function () {
           this.set.is_animating = !0;
       } else if (this.cross_out_out && this.cross_out_x1_scale < 1) {
         if (
-          ((this.cross_out_out_t += 1e3 / VAR.fps),
+          ((this.cross_out_out_t += VAR.dt),
           (this.cross_out_x1_scale = Easing.get(
             "easeInQuad",
             0,
@@ -2191,14 +2191,14 @@ DragLetter.delay = function () {
             (e.f(), delete e.f, delete e.d);
           else if (e.d && e.f)
             ((DragLetter._update = !0),
-              (e.d -= 1e3 / VAR.fps),
+              (e.d -= VAR.dt),
               (DragLettersSet.arr[a]._end = !1));
         }
       if (DragLettersSet.arr[a]._end && DragLettersSet.arr[a].on_end_f)
         DragLettersSet.arr[a].on_end_f(!0);
       DragLettersSet.arr[a].remove_d !== void 0 &&
       DragLettersSet.arr[a].remove_d > 0
-        ? ((DragLettersSet.arr[a].remove_d -= 1e3 / VAR.fps),
+        ? ((DragLettersSet.arr[a].remove_d -= VAR.dt),
           (DragLetter._update = !0))
         : DragLettersSet.arr[a].remove_d !== void 0 &&
           DragLettersSet.arr[a]._remove();
@@ -2756,8 +2756,40 @@ Game = {
   active: !1,
   changeDelay: 0,
   constChangeDaley: 600,
+  speed: 1,
+  speedOptions: [1, 1.5, 2, 3],
   chooseImage_size: 42,
   oneImage_size: 56,
+  initSpeedControl: function () {
+    try {
+      var saved = parseFloat(localStorage.gameSpeed);
+      if (Game.speedOptions.indexOf(saved) != -1) Game.speed = saved;
+    } catch (a) {}
+    Game.speedControl = $(".game_speed");
+    Game.speedControl.on(VAR.click, ".speed_btn", Game.onSpeedSelect);
+    Game.updateSpeedControl();
+  },
+  setSpeed: function (a) {
+    a = parseFloat(a);
+    if (Game.speedOptions.indexOf(a) == -1) return;
+    Game.speed = a;
+    try {
+      localStorage.gameSpeed = String(a);
+    } catch (b) {}
+    Game.updateSpeedControl();
+  },
+  onSpeedSelect: function (a) {
+    a.preventDefault();
+    Game.setSpeed($(a.currentTarget).attr("data-speed"));
+  },
+  updateSpeedControl: function () {
+    if (!Game.speedControl) return;
+    Game.speedControl.attr("data-speed", String(Game.speed));
+    Game.speedControl.find(".speed_btn").each(function () {
+      var a = parseFloat($(this).attr("data-speed")) == Game.speed;
+      $(this).toggleClass("is-active", a).attr("aria-pressed", String(a));
+    });
+  },
   init: function () {
     Game.langID = Address.getParam("lang");
     if (Game.langID) {
@@ -2836,6 +2868,7 @@ Game = {
     new Thumb(!0, Colors[VAR.color_id]);
     new Thumb(!1, Colors[VAR.color_id]);
     Icons.init();
+    Game.initSpeedControl();
     Game.loop(0);
     Game.setCanvasWH();
     $(window).on("globalLayout", Game.setCanvasWH);
@@ -3123,11 +3156,11 @@ Game = {
   },
   draw: function () {
     var a = Game._currentImage;
-    Game.waiting && (Game.waiting_t += 1e3 / VAR.fps);
+    Game.waiting && (Game.waiting_t += VAR.dt);
     for (var b = 0; b < a.length; b++)
       if (a[b].img)
         if (a[b].outDelay !== void 0 && a[b].outDelay > 0)
-          ((a[b].displayed = !1), (a[b].outDelay -= 1e3 / VAR.fps));
+          ((a[b].displayed = !1), (a[b].outDelay -= VAR.dt));
         else if (!a[b].displayed && a[b].outDelay === void 0 && a[b].delay <= 0)
           ((a[b].displayed = !0),
             (a[b].img[0].style.visibility = ""),
@@ -3137,7 +3170,7 @@ Game = {
                 Sounds.active &&
                 Game.playSound()));
         else if (a[b].delay > 0) {
-          if (a[b].delay <= (1e3 / VAR.fps) * 2 && !a[b].puffed) {
+          if (a[b].delay <= (VAR.dt) * 2 && !a[b].puffed) {
             a[b].puffed = !0;
             var c = VAR.rand(0, 1) === 0 ? -1 : 1;
             Words.current.is_choose
@@ -3190,7 +3223,7 @@ Game = {
                   c,
                 ));
           }
-          a[b].delay -= 1e3 / VAR.fps;
+          a[b].delay -= VAR.dt;
         }
     for (b = 0, j = a.length; b < j; b++)
       if (a[0].outDelay !== void 0 && a[0].outDelay <= 0)
@@ -3255,7 +3288,7 @@ Game = {
   changeWordsDelay: function () {
     if (TranslationAudio.speech || TranslationAudio.recording) return;
     Game.changeDelay > 0
-      ? (Game.changeDelay -= 1e3 / VAR.fps)
+      ? (Game.changeDelay -= VAR.dt)
       : Game.soundDelay
         ? ((Game.soundDelay = !1),
           Game.playSound(),
@@ -3458,8 +3491,10 @@ Game = {
   },
   loop: function (a) {
     requestAnimationFrame(Game.loop);
-    if (!a || a - VAR.lastUpdate >= 1e3 / VAR.fps) {
+    if (!a || a - VAR.lastUpdate >= VAR.frameGate) {
+      var elapsed = VAR.lastUpdate && a ? a - VAR.lastUpdate : VAR.frameGate;
       VAR.lastUpdate = a;
+      VAR.dt = Math.min(elapsed, 100) * Game.speed;
       Game._bg.length = 0;
       Game._middle.length = 0;
       Game._front.length = 0;
@@ -3671,7 +3706,7 @@ Home.prototype.btns_layout = function () {
 };
 Home.prototype.onDelay = function () {
   Home.c.delay && Home.c.delay > 0
-    ? (Home.c.delay -= 1e3 / VAR.fps)
+    ? (Home.c.delay -= VAR.dt)
     : ($(window).off("gameTik", Home.c.onDelay), Home.c.init());
 };
 Home.prototype.init = function () {
@@ -4009,7 +4044,7 @@ Home.prototype.remove = function (a) {
 };
 Home.prototype._remove = function () {
   if (Home.old)
-    if (Home.old.delay && Home.old.delay > 0) Home.old.delay -= 1e3 / VAR.fps;
+    if (Home.old.delay && Home.old.delay > 0) Home.old.delay -= VAR.dt;
     else if ((Home.old.count_remove++, Home.old.count_remove === 1))
       (Home.old.cookie_info &&
         (Home.old.cookie_info[0].style[Modernizr.prefixed("transform")] =
@@ -4202,10 +4237,10 @@ Icon.delay = function () {
     for (var b = 0; b < IconsSet.allSets[a].arr.length; b++) {
       var c = IconsSet.allSets[a].arr[b];
       if (c.d !== void 0 && c.d <= 0) (c.f(), delete c.f, delete c.d);
-      else if (c.d) ((Icon._update = !0), (c.d -= 1e3 / VAR.fps));
+      else if (c.d) ((Icon._update = !0), (c.d -= VAR.dt));
       if (c.hide_d !== void 0 && c.hide_d <= 0)
         (c.hide_f(), delete c.hide_f, delete c.hide_d);
-      else if (c.hide_d) ((Icon._update = !0), (c.hide_d -= 1e3 / VAR.fps));
+      else if (c.hide_d) ((Icon._update = !0), (c.hide_d -= VAR.dt));
     }
   Icon._update || $(window).off("gameTik", Icon.delay);
 };
@@ -4642,7 +4677,7 @@ KanaSign._delay = function () {
     )
       (KanaSign.arr[a].f(), delete KanaSign.arr[a].f, delete KanaSign.arr[a].d);
     else if (KanaSign.arr[a].d)
-      ((KanaSign._update = !0), (KanaSign.arr[a].d -= 1e3 / VAR.fps));
+      ((KanaSign._update = !0), (KanaSign.arr[a].d -= VAR.dt));
   KanaSign._update || $(window).off("gameTik", KanaSign._delay);
 };
 LoginForm.minW = 360;
@@ -5096,7 +5131,7 @@ var Forms = {
         (Forms.arr[a].f(),
           Forms.arr[a] && (delete Forms.arr[a].f, delete Forms.arr[a].d));
       else if (Forms.arr[a] && Forms.arr[a].d)
-        ((Forms.arr[a].d -= 1e3 / VAR.fps), (Forms._update = !0));
+        ((Forms.arr[a].d -= VAR.dt), (Forms._update = !0));
     Forms._update || $(window).off("gameTik", Forms.delay);
   },
 };
@@ -5699,7 +5734,7 @@ PlayBtn.delay = function () {
   for (var a in PlayBtn.arr) {
     var b = PlayBtn.arr[a];
     if (b.d !== void 0 && b.d <= 0 && b.f) (b.f(), delete b.f, delete b.d);
-    else if (b.d && b.f) ((PlayBtn._update = !0), (b.d -= 1e3 / VAR.fps));
+    else if (b.d && b.f) ((PlayBtn._update = !0), (b.d -= VAR.dt));
   }
   PlayBtn._update || $(window).off("gameTik", PlayBtn.delay);
 };
@@ -5817,7 +5852,7 @@ PopUp.delay = function () {
       (PopUp.arr[a].f(),
         PopUp.arr[a] && (delete PopUp.arr[a].f, delete PopUp.arr[a].d));
     else if (PopUp.arr[a] && PopUp.arr[a].d)
-      ((PopUp.arr[a].d -= 1e3 / VAR.fps), (PopUp._update = !0));
+      ((PopUp.arr[a].d -= VAR.dt), (PopUp._update = !0));
   PopUp._update || $(window).off("gameTik", PopUp.delay);
 };
 PopUp.layout = function () {
@@ -5899,7 +5934,7 @@ Preloader.prototype.draw = function () {
       if (!b.out && b.scale < 1)
         b.del > 0
           ? b.del--
-          : ((b.t += 1e3 / VAR.fps),
+          : ((b.t += VAR.dt),
             (b.scale = Easing.get(
               Preloader.easing,
               b.startVal,
@@ -5911,7 +5946,7 @@ Preloader.prototype.draw = function () {
         b.del > 0 && b.scale == 1
           ? b.del--
           : ((this.speed += 0.1),
-            (b.t += 1e3 / VAR.fps),
+            (b.t += VAR.dt),
             (b.scale = Easing.get(
               Preloader.easing,
               b.startVal,
@@ -6016,7 +6051,7 @@ Puff = {
     for (var e = 0; e < d.length; e++) {
       var b = d[e];
       b.ctx.fillStyle = b.color;
-      b.t += 1e3 / VAR.fps;
+      b.t += VAR.dt;
       for (var c = b.removed; c < b.a.length; c++)
         b.a[c].total_t <= b.t
           ? (b.removed = c + 1)
@@ -6448,7 +6483,7 @@ List.delay = function () {
     for (var a in List.arr) {
       if (List.arr[a].show_index < List.arr[a].li.length)
         List.arr[a].show_d > 0
-          ? (List.arr[a].show_d -= 1e3 / VAR.fps)
+          ? (List.arr[a].show_d -= VAR.dt)
           : ((List.arr[a].li[List.arr[a].show_index].style.visibility =
               "visible"),
             (List.arr[a].li[List.arr[a].show_index].style[
@@ -6466,7 +6501,7 @@ List.delay = function () {
         : List.arr[a].out &&
           List.arr[a].hide_index >= List.arr[a].li.length &&
           (List.arr[a].hide_d > 0
-            ? (List.arr[a].hide_d -= 1e3 / VAR.fps)
+            ? (List.arr[a].hide_d -= VAR.dt)
             : List.arr[a]._remove());
     }
 };
@@ -6602,7 +6637,7 @@ Thumb.delay = function () {
     var b = Thumb.arr[a];
     if (b.d !== void 0 && b.d <= 0)
       (b.f(), b.d > 0 ? (Thumb._update = !0) : (delete b.f, delete b.d));
-    else if (b.d) ((Thumb._update = !0), (b.d -= 1e3 / VAR.fps));
+    else if (b.d) ((Thumb._update = !0), (b.d -= VAR.dt));
   }
   Thumb._update || $(window).off("gameTik", Thumb.delay);
 };
@@ -7183,7 +7218,7 @@ SingleDigit._delay = function () {
       c;
     for (c in b)
       if (b[c].d !== void 0 && b[c].d <= 0 && b[c].f) b[c].f();
-      else if (b[c].d) ((SingleDigit._update = !0), (b[c].d -= 1e3 / VAR.fps));
+      else if (b[c].d) ((SingleDigit._update = !0), (b[c].d -= VAR.dt));
   }
   SingleDigit._update || $(window).off("gameTik", SingleDigit._delay);
 };
@@ -7253,7 +7288,7 @@ SmallIcon._delay = function () {
         SmallIcon.arr[a] &&
           (delete SmallIcon.arr[a].f, delete SmallIcon.arr[a].d));
     else if (SmallIcon.arr[a].d)
-      ((SmallIcon._update = !0), (SmallIcon.arr[a].d -= 1e3 / VAR.fps));
+      ((SmallIcon._update = !0), (SmallIcon.arr[a].d -= VAR.dt));
   SmallIcon._update || $(window).off("gameTik", SmallIcon._delay);
 };
 errorPage = {
@@ -9408,6 +9443,8 @@ typeof JSON != "object" && (JSON = {});
 })(window);
 VAR = {
   fps: 50,
+  frameGate: 1e3 / 50,
+  dt: 20,
   lastUpdate: 0,
   click: "click",
   img_path: "./img/words/",
@@ -9720,7 +9757,7 @@ globalLayout._delayLayout = function () {
   if (globalLayout.d !== void 0 && globalLayout.d <= 0)
     (globalLayout(), delete globalLayout.d);
   else if (globalLayout.d)
-    ((globalLayout._update = !0), (globalLayout.d -= 1e3 / VAR.fps));
+    ((globalLayout._update = !0), (globalLayout.d -= VAR.dt));
   globalLayout._update || $(window).off("gameTik", globalLayout._delayLayout);
 };
 Words = {

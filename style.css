@@ -945,6 +945,54 @@ input:disabled {
   -o-transition: color 400ms linear 100ms;
   transition: color 400ms linear 100ms;
 }
+.game_speed {
+  position: absolute;
+  top: max(0.65em, env(safe-area-inset-top));
+  left: max(0.65em, env(safe-area-inset-left));
+  z-index: 120;
+  display: flex;
+  gap: 0.25em;
+  padding: 0.3em;
+  border: 0.12em solid rgba(40, 56, 67, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0.25em 0.85em rgba(40, 56, 67, 0.12);
+  color: #283843;
+  font-family: "MrDumDumver07srHeavy", sans-serif;
+  font-size: clamp(11px, 1.05vw, 14px);
+  line-height: 1;
+}
+.game_speed .speed_btn {
+  min-width: 2.65em;
+  height: 2.15em;
+  padding: 0 0.55em;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+.game_speed .speed_btn:hover {
+  background: rgba(40, 56, 67, 0.09);
+}
+.game_speed .speed_btn.is-active {
+  background: #283843;
+  color: #fff;
+}
+.game_speed .speed_btn:active {
+  transform: scale(0.94);
+}
+.game_speed .speed_btn:focus-visible {
+  outline: 0.18em solid #283843;
+  outline-offset: 0.16em;
+}
 .points_label {
   position: relative;
   line-height: 0;
