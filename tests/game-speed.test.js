@@ -51,8 +51,8 @@ function clickSpeed(menu, target = {attr: () => 'gameSpeed_btn'}) {
 }
 
 test('game speed defaults to 1 and restores every supported saved speed', () => {
-  assert.deepEqual(Array.from(setup().Game.speedOptions), [1, 1.5, 2, 3]);
-  for (const speed of [1, 1.5, 2, 3]) {
+  assert.deepEqual(Array.from(setup().Game.speedOptions), [0.5, 1, 1.5, 2]);
+  for (const speed of [0.5, 1, 1.5, 2]) {
     const {Game} = setup({gameSpeed: String(speed)});
     assert.equal(Game.speed, 1);
     Game.initSpeed();
@@ -61,7 +61,7 @@ test('game speed defaults to 1 and restores every supported saved speed', () => 
 });
 
 test('missing, invalid and unsupported saved speeds keep the default', () => {
-  for (const saved of [undefined, null, '', 'invalid', 'NaN', 'Infinity', '0', '-1', '1.25', '4']) {
+  for (const saved of [undefined, null, '', 'invalid', 'NaN', 'Infinity', '0', '-1', '1.25', '3', '4']) {
     const {Game} = setup({gameSpeed: saved});
     Game.initSpeed();
     assert.equal(Game.speed, 1, String(saved));
@@ -80,7 +80,7 @@ test('denied or unavailable storage does not prevent speed initialization', () =
 
 test('setSpeed accepts supported numbers and numeric strings and persists strings', () => {
   const {Game, localStorage} = setup();
-  for (const speed of [1.5, '2', 3, '1']) {
+  for (const speed of [0.5, '0.5', 1.5, '2', '1']) {
     Game.setSpeed(speed);
     assert.equal(Game.speed, Number(speed));
     assert.equal(localStorage.gameSpeed, String(speed));
@@ -95,7 +95,7 @@ test('setSpeed rejects invalid values without persistence or audio changes', () 
   Words.arr = [{sound: {rate: value => rates.push(value)}}];
   Words.current = {sound: {rate: value => rates.push(value)}};
   TranslationAudio.recording = {rate: value => rates.push(value)};
-  for (const invalid of [undefined, null, '', false, {}, 'invalid', NaN, Infinity, 0, -1, 1.25, 4]) {
+  for (const invalid of [undefined, null, '', false, {}, 'invalid', NaN, Infinity, 0, -1, 1.25, 3, '3', 4]) {
     Game.setSpeed(invalid);
     assert.equal(Game.speed, 1.5, String(invalid));
   }
@@ -114,8 +114,8 @@ test('setSpeed updates queued and active sounds while skipping fake or non-rate 
     {sound: {fake: true, _loaded: true}}, {sound: {rate: 2}}];
   Words.current = {sound: active};
   Game.setSpeed(2);
-  Game.setSpeed(3);
-  for (const recording of [...queued, active, translation]) assert.deepEqual(recording.rates, [2, 3]);
+  Game.setSpeed(0.5);
+  for (const recording of [...queued, active, translation]) assert.deepEqual(recording.rates, [2, 0.5]);
 });
 
 test('setSpeed works without an active round', () => {
@@ -156,7 +156,7 @@ test('speed menu action closes, cycles every option, wraps and refreshes in orde
   menu.showMenu = close => calls.push(['close', close]);
   Game.setSpeed = speed => { calls.push(['speed', speed]); setSpeed(speed); };
   menu.set = force => calls.push(['refresh', force]);
-  for (const speed of [1.5, 2, 3, 1]) {
+  for (const speed of [1.5, 2, 0.5, 1]) {
     clickSpeed(menu);
     assert.equal(Game.speed, speed);
     assert.equal(localStorage.gameSpeed, String(speed));
@@ -180,7 +180,7 @@ test('speed menu renders accurate labels and a stable action name in both auth s
   for (const user of [null, {options: {lang_code: 'en', progress_enabled: false}},
     {options: {lang_code: 'en', progress_enabled: true}}]) {
     context.window.UserData = context.UserData = user;
-    for (const speed of [1, 1.5, 2, 3]) {
+    for (const speed of [0.5, 1, 1.5, 2]) {
       Game.setSpeed(speed);
       const oldButtons = menu.btns.slice();
       menu.set(true);
@@ -214,7 +214,7 @@ test('round audio constructors use the selected speed for round and library URLs
   const options = [];
   context.Howl = function (value) { options.push(value); };
   const url = '/data/library/media/audio/en/cat.ogg';
-  for (const speed of [1, 1.5, 2, 3]) {
+  for (const speed of [0.5, 1, 1.5, 2]) {
     for (const entry of [null, {audioUrls: [url]}, {audioUrl: url}]) {
       BabadumLibrary.get = (lang, id) => {
         assert.equal(lang, 'en');
@@ -228,12 +228,27 @@ test('round audio constructors use the selected speed for round and library URLs
       const value = options.at(-1);
       assert.ok(round.sound instanceof context.Howl);
       assert.equal(value.rate, speed);
+      assert.equal(value.html5, true);
       assert.deepEqual(Array.from(value.src), [url]);
       assert.equal(value.onload, Words.onAudioLoad);
       assert.equal(value.onloaderror, Words.onAudioError);
       assert.equal(value.onend, Sounds.onWordEnd);
     }
   }
+});
+
+test('bundled HTML5 playback enables native pitch preservation before setting the rate', () => {
+  assert.match(source, /k\.preservesPitch\s*=\s*k\.mozPreservesPitch\s*=\s*k\.webkitPreservesPitch\s*=\s*!0;\s*k\.playbackRate\s*=\s*g\._rate/);
+});
+
+test('sound effects do not opt into HTML5 playback or game speed', () => {
+  const soundsStart = source.indexOf('\nSounds = {');
+  const soundsEnd = source.indexOf('\nfunction Thumb(', soundsStart);
+  assert.ok(soundsStart >= 0 && soundsEnd > soundsStart);
+  const soundsSource = source.slice(soundsStart, soundsEnd);
+  assert.match(soundsSource, /new Howl\(/);
+  assert.doesNotMatch(soundsSource, /\bhtml5\s*:\s*(?:true|!0)\b/);
+  assert.doesNotMatch(soundsSource, /\brate\s*:\s*Game\.speed/);
 });
 
 test('rounds without audio or browser audio support stay ready and accept speed changes', () => {
@@ -251,7 +266,7 @@ test('rounds without audio or browser audio support stay ready and accept speed 
     assert.equal(round.sound._loaded, true);
     assert.equal(loaded, 1);
     Words.arr = [round];
-    assert.doesNotThrow(() => Game.setSpeed(3));
-    assert.equal(Game.speed, 3);
+    assert.doesNotThrow(() => Game.setSpeed(0.5));
+    assert.equal(Game.speed, 0.5);
   }
 });

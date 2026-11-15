@@ -118,6 +118,7 @@ var TranslationAudio = {
     round.translationText = entry.word;
     var recording = new Howl({
       src: entry.audioUrls && entry.audioUrls.length ? entry.audioUrls : [entry.audioUrl],
+      html5: true,
       rate: Game.speed,
       onend: function () { if (TranslationAudio.recording == recording) TranslationAudio.cancel(); },
       onloaderror: function () {
@@ -132,7 +133,7 @@ var TranslationAudio = {
       },
     });
     this.recording = recording;
-    this.timer = setTimeout(function () { TranslationAudio.cancel(); }, 10000);
+    this.timer = setTimeout(function () { TranslationAudio.cancel(); }, 20000);
     recording.play();
   },
   speak: function (round) {
@@ -2758,7 +2759,7 @@ Game = {
   changeDelay: 0,
   constChangeDaley: 600,
   speed: 1,
-  speedOptions: [1, 1.5, 2, 3],
+  speedOptions: [0.5, 1, 1.5, 2],
   chooseImage_size: 42,
   oneImage_size: 56,
   initSpeed: function () {
@@ -7639,6 +7640,7 @@ errorPage = {
           k.currentTime = n;
           k.muted = g._muted || b._muted || i._muted || k.muted;
           k.volume = g._volume * i.volume();
+          k.preservesPitch = k.mozPreservesPitch = k.webkitPreservesPitch = !0;
           k.playbackRate = g._rate;
           setTimeout(function () {
             k.play();
@@ -9796,6 +9798,7 @@ Words = {
         Words.onAudioLoad())
       : (a.sound = new Howl({
           src: audioUrls,
+          html5: true,
           rate: Game.speed,
           onload: Words.onAudioLoad,
           onend: a.game == "chooseImageSound" ? Sounds.onWordEnd : void 0,

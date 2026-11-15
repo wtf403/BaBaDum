@@ -18,7 +18,7 @@ function setup(saved, supported = true) {
     getItem: () => saved, setItem: (key, value) => storage[key] = value},
     window: supported ? {speechSynthesis, SpeechSynthesisUtterance: function () {}} : {},
     SpeechSynthesisUtterance: function (text) { this.text = text; },
-    setTimeout: callback => { timers.set(timers.size + 1, callback); return timers.size; },
+    setTimeout: (callback, delay) => { timers.set(timers.size + 1, {callback, delay}); return timers.size; },
     clearTimeout: id => timers.delete(id)};
   vm.createContext(context);
   vm.runInContext('// Optional audio' + source, context);
@@ -62,7 +62,7 @@ test('speech errors and missing completion callbacks release the round', () => {
   assert.equal(audio.speech, null);
   assert.equal(timers.size, 0);
   audio.play({translationText: 'dog'});
-  [...timers.values()][0]();
+  [...timers.values()][0].callback();
   assert.equal(audio.speech, null);
 });
 
@@ -107,6 +107,7 @@ test('cached Spanish recording is preferred and uses its local filename', () => 
   assert.equal(played.length, 1);
   assert.equal(played[0].src[0], '/data/library/media/audio/es/gato_3210.ogg');
   assert.equal(played[0].rate, 1);
+  assert.equal(played[0].html5, true);
   assert.equal(spoken.length, 0);
   played[0].onend();
   assert.equal(audio.recording, null);
@@ -126,7 +127,7 @@ test('new and replacement translation recordings use the currently selected spee
     recordings.push(this);
   };
   const round = {id: 10, translationText: 'el gato', translationLang: 'es'};
-  for (const speed of [1.5, 2, 3, 1]) {
+  for (const speed of [0.5, 1, 1.5, 2]) {
     const previous = audio.recording;
     const count = recordings.length;
     context.Game.speed = speed;
@@ -134,6 +135,7 @@ test('new and replacement translation recordings use the currently selected spee
     assert.equal(recordings.length, count + 1);
     assert.equal(audio.recording, recordings.at(-1));
     assert.equal(audio.recording.options.rate, speed);
+    assert.equal(audio.recording.options.html5, true);
     assert.equal(audio.recording.played, true);
     assert.equal(audio.recording.unloaded, false);
     if (previous) {
@@ -144,6 +146,28 @@ test('new and replacement translation recordings use the currently selected spee
   assert.equal(spoken.length, 0);
 });
 
+test('half-speed translation recordings get a 20-second safety timer that releases playback', () => {
+  const {audio, context, timers} = setup('true');
+  context.Game.speed = 0.5;
+  context.BabadumRecordings.get = () => ({word: 'cat', audioUrl: '/data/library/media/audio/en/cat.ogg'});
+  let unloaded = 0;
+  context.Howl = function (options) {
+    assert.equal(options.html5, true);
+    assert.equal(options.rate, 0.5);
+    this.play = () => {};
+    this.unload = () => unloaded++;
+  };
+  audio.play({id: 10, translationText: 'cat', translationLang: 'en'});
+  assert.ok(audio.recording);
+  assert.equal(timers.size, 1);
+  const timer = timers.get(audio.timer);
+  assert.equal(timer.delay, 20000);
+  timer.callback();
+  assert.equal(unloaded, 1);
+  assert.equal(audio.recording, null);
+  assert.equal(timers.size, 0);
+});
+
 test('failed original recording falls back to Spanish speech and disabling stops playback', () => {
   const {audio, context, spoken} = setup('true');
   context.InterfaceData.data.lang_code = 'es';
@@ -152,11 +176,13 @@ test('failed original recording falls back to Spanish speech and disabling stops
   context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => unloaded++; };
   const round = {id: 10, translationText:'el gato', translationLang:'es'};
   audio.play(round);
+  assert.equal(options.html5, true);
   options.onloaderror();
   assert.equal(unloaded, 1);
   assert.equal(spoken[0].lang, 'es');
   spoken[0].onend();
   audio.play(round);
+  assert.equal(options.html5, true);
   audio.setEnabled(false);
   assert.equal(unloaded, 2);
   assert.equal(audio.recording, null);
@@ -171,6 +197,7 @@ test('downloaded Spanish recording is served from the local library', () => {
   let options;
   context.Howl = function (value) { options = value; this.play = () => {}; this.unload = () => {}; };
   audio.play({id:10, translationText:'el gato', translationLang:'es'});
+  assert.equal(options.html5, true);
   assert.equal(options.src.length, 2);
   assert.equal(options.src[0], '/data/library/media/audio/es/gato_3210.ogg');
   assert.equal(options.src[1], '/data/library/media/audio/es/gato_3210.m4a');
@@ -195,6 +222,7 @@ test('round-supplied native translation works with an older browser catalog', ()
   audio.prepare(round);
   audio.play(round);
   assert.equal(round.translationText, 'le chat');
+  assert.equal(options.html5, true);
   assert.equal(options.src[0], '/data/library/media/audio/fr/chat_123.ogg');
   assert.equal(translations.length, 0);
   assert.equal(spoken.length, 0);
