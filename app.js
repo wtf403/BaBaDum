@@ -203,7 +203,7 @@ var HanziWriterManager = {
         var localConfig = HanziWriterManager.getConfig();
         (function (target, config) {
           config.charDataLoader = function (char, onComplete, onError) {
-            $.getJSON("/data/hanzi/" + encodeURIComponent(char) + ".json")
+            $.getJSON("data/hanzi/" + encodeURIComponent(char) + ".json")
               .done(onComplete)
               .fail(function () {
                 target.data("strokeUnavailable", true).empty().text(char).css({
@@ -2759,7 +2759,7 @@ Game = {
   changeDelay: 0,
   constChangeDaley: 600,
   speed: 1,
-  speedOptions: [0.5, 1, 1.5, 2],
+  speedOptions: [0.8, 1, 1.5],
   chooseImage_size: 42,
   oneImage_size: 56,
   initSpeed: function () {
@@ -6502,8 +6502,8 @@ Sounds = {
       !window.audioNotImplemented &&
       ((Sounds.fx = new Howl({
         src: [
-          "/assets/native/audio/sounds_fx.ogg",
-          "/assets/native/audio/sounds_fx.m4a",
+          "assets/native/audio/sounds_fx.ogg",
+          "assets/native/audio/sounds_fx.m4a",
         ],
         sprite: {
           pop: [0, 200],
@@ -7296,7 +7296,7 @@ errorPage = {
     $("body")
       .css("background-color", "#c9b173")
       .append(
-        '<div class="stupid_browser_error"><img src="/assets/native/img/stupid_browser_error.png" alt="Image of old computer with a stupid face displayed on old CRT monitor."/><h1>' +
+        '<div class="stupid_browser_error"><img src="assets/native/img/stupid_browser_error.png" alt="Image of old computer with a stupid face displayed on old CRT monitor."/><h1>' +
           InterfaceData.get("stupid_browser") +
           '</h1><p class="sub">' +
           InterfaceData.get("stupid_browser_sub") +
@@ -7305,7 +7305,7 @@ errorPage = {
   },
   addFont: function () {
     $("head").append(
-      "<style>@font-face {font-family: 'MrDumDumver07srHeavy';src: url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.eot');src: url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.eot?#iefix') format('embedded-opentype'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.woff') format('woff'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.ttf') format('truetype'),url('/assets/native/css/webfonts/mrdumdumver07sr-heavy.svg#mr_dum_dumheavy') format('svg');font-weight: normal;font-style: normal;}</style>",
+      "<style>@font-face {font-family: 'MrDumDumver07srHeavy';src: url('assets/native/css/webfonts/mrdumdumver07sr-heavy.eot');src: url('assets/native/css/webfonts/mrdumdumver07sr-heavy.eot?#iefix') format('embedded-opentype'),url('assets/native/css/webfonts/mrdumdumver07sr-heavy.woff') format('woff'),url('assets/native/css/webfonts/mrdumdumver07sr-heavy.ttf') format('truetype'),url('assets/native/css/webfonts/mrdumdumver07sr-heavy.svg#mr_dum_dumheavy') format('svg');font-weight: normal;font-style: normal;}</style>",
     );
   },
 };
@@ -9542,7 +9542,7 @@ window.log = function () {
 );
 function googleWebFontLoad() {
   var a = document.createElement("script");
-  a.src = "/assets/vendor/webfont-1.js";
+  a.src = "assets/vendor/webfont-1.js";
   a.type = "text/javascript";
   a.async = "true";
   var b = document.getElementsByTagName("script")[0];
@@ -9715,7 +9715,7 @@ $(window).load(function () {
     WebFontConfig = {
       custom: {
         families: ["MrDumDumver07srHeavy", "MrDumDumver07srHeavyShadow"],
-        urls: ["/assets/native/css/ver07srfont.css"],
+        urls: ["assets/native/css/ver07srfont.css"],
       },
       active: initateApp,
     };
