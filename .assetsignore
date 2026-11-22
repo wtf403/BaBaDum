@@ -18,9 +18,6 @@ deploy.sh
 babadum.service
 server.py
 local_game.py
-library.js
-recordings.js
-arabic.js
 deepl_errors.log
 config.js
 data/library/media/audio
