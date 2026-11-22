@@ -4,6 +4,8 @@
 .expect
 .pi
 .impeccable
+.wrangler
+node_modules
 __pycache__
 *.pyc
 *.log
