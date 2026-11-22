@@ -25,6 +25,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create config.js
+        env:
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+        run: |
+          cat > config.js <<EOF
+          var Config = {
+            deepl: {
+              apiKey: "${DEEPL_API_KEY}",
+              useFreeApi: true,
+            },
+          };
+          EOF
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

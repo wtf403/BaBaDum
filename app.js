@@ -9850,12 +9850,11 @@ AJAX = {
       ((a.browser = $.browser.name),
         (a.browser_version = $.browser.version),
         (a.os_name = $.os.name));
-    $.post(
-      a.category == "user" ? AJAX.authUrl : "/api/game",
-      a,
-      a.onReceiveLocation ? AJAX.onReceive : null,
-      "json",
-    );
+    var apiUrl = a.category == "user" ? AJAX.authUrl : "api/game";
+    var isStaticHost = /\.github\.io$/.test(location.hostname);
+    if (a.category != "user" && isStaticHost) return;
+    var req = $.post(apiUrl, a, a.onReceiveLocation ? AJAX.onReceive : null, "json");
+    if (req && req.fail) req.fail(function () {});
   },
   onReceive: function (a) {
     if (a)
