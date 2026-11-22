@@ -9850,7 +9850,7 @@ AJAX = {
       ((a.browser = $.browser.name),
         (a.browser_version = $.browser.version),
         (a.os_name = $.os.name));
-    var apiUrl = a.category == "user" ? AJAX.authUrl : "api/game";
+    var apiUrl = a.category == "user" ? AJAX.authUrl : "/api/game";
     var isStaticHost = /\.github\.io$/.test(location.hostname);
     if (a.category != "user" && isStaticHost && window.StaticGameAPI) {
       window.StaticGameAPI.handle(a).then(function (response) {

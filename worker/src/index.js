@@ -206,7 +206,7 @@ export class GameState {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/api/game" || url.pathname === "/get.php") {
+    if (url.pathname === "/api/game" || url.pathname.endsWith("/api/game") || url.pathname === "/get.php") {
       const id = env.GAME_STATE.idFromName("global");
       const stub = env.GAME_STATE.get(id);
       return stub.fetch(request);
