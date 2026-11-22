@@ -9850,15 +9850,8 @@ AJAX = {
       ((a.browser = $.browser.name),
         (a.browser_version = $.browser.version),
         (a.os_name = $.os.name));
-    var apiUrl = a.category == "user" ? AJAX.authUrl : "/api/game";
-    var isStaticHost = /\.github\.io$/.test(location.hostname);
-    if (a.category != "user" && isStaticHost && window.StaticGameAPI) {
-      window.StaticGameAPI.handle(a).then(function (response) {
-        if (a.onReceiveLocation) AJAX.onReceive(response);
-      });
-      return;
-    }
-    if (a.category != "user" && isStaticHost) return;
+    var apiBase = (typeof Config !== "undefined" && Config.apiBase) || (/\.github\.io$/.test(location.hostname) ? "https://babadum.wtf403.workers.dev" : "");
+    var apiUrl = a.category == "user" ? AJAX.authUrl : apiBase + "/api/game";
     var req = $.post(apiUrl, a, a.onReceiveLocation ? AJAX.onReceive : null, "json");
     if (req && req.fail) req.fail(function () {});
   },

@@ -203,13 +203,27 @@ export class GameState {
   }
 }
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+function withCors(response) {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(CORS)) headers.set(k, v);
+  return new Response(response.body, { status: response.status, headers });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/game" || url.pathname.endsWith("/api/game") || url.pathname === "/get.php") {
+      if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
       const id = env.GAME_STATE.idFromName("global");
       const stub = env.GAME_STATE.get(id);
-      return stub.fetch(request);
+      return withCors(await stub.fetch(request));
     }
     if (url.pathname === "/config.js") {
       const key = env.DEEPL_API_KEY || "";
