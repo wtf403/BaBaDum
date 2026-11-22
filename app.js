@@ -9852,6 +9852,12 @@ AJAX = {
         (a.os_name = $.os.name));
     var apiUrl = a.category == "user" ? AJAX.authUrl : "api/game";
     var isStaticHost = /\.github\.io$/.test(location.hostname);
+    if (a.category != "user" && isStaticHost && window.StaticGameAPI) {
+      window.StaticGameAPI.handle(a).then(function (response) {
+        if (a.onReceiveLocation) AJAX.onReceive(response);
+      });
+      return;
+    }
     if (a.category != "user" && isStaticHost) return;
     var req = $.post(apiUrl, a, a.onReceiveLocation ? AJAX.onReceive : null, "json");
     if (req && req.fail) req.fail(function () {});
