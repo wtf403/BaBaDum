@@ -216,6 +216,11 @@ export default {
       const body = `var Config = {\n  deepl: {\n    apiKey: ${JSON.stringify(key)},\n    useFreeApi: true,\n  },\n};\n`;
       return new Response(body, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" } });
     }
-    return env.ASSETS.fetch(request);
+    let res = await env.ASSETS.fetch(request);
+    if (res.status === 404 && url.pathname.startsWith("/data/library/media/")) {
+      const raw = `https://raw.githubusercontent.com/wtf403/BaBaDum/main${url.pathname}`;
+      res = await fetch(raw, { cf: { cacheEverything: true } });
+    }
+    return res;
   },
 };
